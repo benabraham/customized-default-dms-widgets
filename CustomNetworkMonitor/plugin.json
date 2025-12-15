@@ -1,0 +1,10 @@
+{
+    "id": "CustomNetworkMonitor",
+    "name": "Custom Network Monitor",
+    "version": "1.0.0",
+    "description": "Network monitor with fixed-width display and simplified low rates",
+    "author": "srb",
+    "type": "widget",
+    "component": "./CustomNetworkMonitor.qml",
+    "icon": "network_check"
+}

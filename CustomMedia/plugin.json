@@ -1,0 +1,12 @@
+{
+  "id": "CustomMedia",
+  "name": "Custom Media Controls",
+  "version": "1.0.0",
+  "description": "Media widget with unlimited width option",
+  "author": "srb",
+  "type": "widget",
+  "component": "./CustomMedia.qml",
+  "settings": "./CustomMediaSettings.qml",
+  "icon": "music_note",
+  "permissions": ["settings_read", "settings_write"]
+}

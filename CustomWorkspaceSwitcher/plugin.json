@@ -1,0 +1,10 @@
+{
+    "id": "CustomWorkspaceSwitcher",
+    "name": "Custom Workspace Switcher",
+    "version": "1.0.0",
+    "description": "Workspace switcher with custom icon sizing and workspace numbers",
+    "author": "srb",
+    "type": "widget",
+    "component": "./CustomWorkspaceSwitcher.qml",
+    "icon": "view_module"
+}
