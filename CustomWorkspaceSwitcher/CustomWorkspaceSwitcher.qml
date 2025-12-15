@@ -666,7 +666,7 @@ Item {
         id: workspaceRow
 
         anchors.centerIn: parent
-        spacing: Theme.spacingXL * 2
+        spacing: Theme.spacingXL
         flow: isVertical ? Flow.TopToBottom : Flow.LeftToRight
 
         Repeater {
@@ -722,7 +722,7 @@ Item {
 
                 readonly property real baseWidth: root.isVertical ? root.barThickness : Theme.spacingS
                 readonly property real baseHeight: root.isVertical ? Theme.spacingS : (SettingsData.showWorkspaceApps ? widgetHeight * 1.0 : widgetHeight * 0.5)
-                readonly property int appIconSpacing: 8
+                readonly property int appIconSpacing: 0
 
                 readonly property real iconsExtraWidth: {
                     if (!root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
@@ -734,7 +734,8 @@ Item {
                 readonly property real iconsExtraHeight: {
                     if (root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
                         const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
-                        return numIcons > 0 ? 24 * numIcons + 12 + (numIcons - 1) * appIconSpacing : 0;
+                        // one 36px icon + rest 24px + spacing between
+                        return numIcons > 0 ? 24 * (numIcons - 1) + 36 + (numIcons - 1) * appIconSpacing : 0;
                     }
                     return 0;
                 }
@@ -1031,62 +1032,78 @@ Item {
                             Component {
                                 id: columnLayout
                                 Column {
-                                    StyledText {
-                                        visible: true
-                                        text: index + 1
-                                        color: isActive ? Theme.surfaceText : Theme.surfaceTextMedium
-                                        font.pixelSize: 18
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                    }
-                                    spacing: 2
+                                    spacing: 4
                                     visible: true || loadedHasIcon
 
-                                    DankIcon {
-                                        visible: loadedHasIcon && loadedIconData?.type === "icon"
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        name: loadedIconData?.value ?? ""
-                                        size: 24
-                                        color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
-                                        weight: (isActive && !isPlaceholder) ? 500 : 400
-                                    }
+                                    Column {
+                                        width: 36
+                                        spacing: 0
+                                        visible: true || loadedHasIcon
 
-                                    StyledText {
-                                        visible: loadedHasIcon && loadedIconData?.type === "text"
-                                        anchors.horizontalCenter: parent.horizontalCenter
-                                        text: loadedIconData?.value ?? ""
-                                        color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
-                                        font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                        font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
+                                        StyledText {
+                                            visible: true
+                                            text: index + 1
+                                            color: isActive ? Theme.surfaceText : Theme.surfaceTextMedium
+                                            font.pixelSize: 18
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                        }
+
+                                        DankIcon {
+                                            visible: loadedHasIcon && loadedIconData?.type === "icon"
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            name: loadedIconData?.value ?? ""
+                                            size: 24
+                                            color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                            weight: (isActive && !isPlaceholder) ? 500 : 400
+                                        }
+
+                                        StyledText {
+                                            visible: loadedHasIcon && loadedIconData?.type === "text"
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            text: loadedIconData?.value ?? ""
+                                            color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                            font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
+                                            font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
+                                        }
                                     }
 
                                     ColumnLayout {
+                                        id: colIconsLayout
                                         width: 36
-                                        height: {
-                                            const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
-                                            return numIcons > 0 ? 24 * numIcons + 12 + (numIcons - 1) * appIconSpacing : 0
-                                        }
-                                        spacing: 0
+
+                                        // Calculate distribution values for space-evenly (non-focused) vs space-between (focused)
+                                        property int numIcons: Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
+                                        property int activeCount: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons).filter(i => i.active).length
+
+                                        property real iconsHeight: 24 * (numIcons - activeCount) + 36 * activeCount
+                                        property real totalHeight: numIcons > 0 ? 24 * (numIcons - 1) + 36 + (numIcons - 1) * appIconSpacing : 0
+                                        property real remaining: totalHeight - iconsHeight
+                                        property real gapSize: numIcons <= 1 ? 0 : (isActive ? remaining / (numIcons - 1) : remaining / (numIcons + 1))
+                                        property real evenlyPadding: isActive ? 0 : gapSize
+
+                                        height: totalHeight
+                                        spacing: Math.max(0, gapSize)
 
                                         Repeater {
                                             model: ScriptModel {
                                                 values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                             }
                                             delegate: Item {
-                                                Layout.fillHeight: true
+                                                Layout.preferredHeight: modelData.active ? 36 : 24
                                                 Layout.preferredWidth: 36
+                                                Layout.topMargin: index === 0 ? colIconsLayout.evenlyPadding * 1  : 0
+                                                Layout.bottomMargin: index === colIconsLayout.numIcons - 1 ? colIconsLayout.evenlyPadding * 1 : 0
 
                                                 IconImage {
                                                     id: colAppIcon
                                                     width: modelData.active ? 36 : 24; height: modelData.active ? 36 : 24; anchors.centerIn: parent
                                                     source: modelData.icon
-                                                    opacity: 1.0
                                                     visible: !modelData.isSteamApp && !modelData.isQuickshell
                                                 }
 
                                                 IconImage {
                                                     anchors.fill: parent
                                                     source: modelData.icon
-                                                    opacity: 1.0
                                                     visible: modelData.isQuickshell
                                                     layer.enabled: true
                                                     layer.effect: MultiEffect {
