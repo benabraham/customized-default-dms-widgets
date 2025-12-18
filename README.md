@@ -2,6 +2,12 @@
 
 Modified copies of DMS built-in widgets. The code is copied from DankMaterialShell's default widgets with specific customizations applied.
 
+## Upstream Revision
+
+**Last synced:** 2025-12-18
+**Base commit:** `baf23157` (i18n: sync translations)
+**Repository:** https://github.com/AvengeMedia/DankMaterialShell
+
 ## CustomFocusedApp
 
 Shows **icon + window title** instead of app name + separator + title.

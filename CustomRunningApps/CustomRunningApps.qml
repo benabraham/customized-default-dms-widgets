@@ -350,7 +350,7 @@ Item {
                         IconImage {
                             id: iconImg
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? (parent.width - 24) / 2 : Theme.spacingS
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
                             width: 24
                             height: 24
@@ -377,7 +377,7 @@ Item {
 
                         DankIcon {
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? (parent.width - 24) / 2 : Theme.spacingS
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
                             size: 24
                             name: "sports_esports"
@@ -624,7 +624,7 @@ Item {
 
                         DankIcon {
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? (parent.width - 24) / 2 : Theme.spacingS
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
                             size: 24
                             name: "sports_esports"
