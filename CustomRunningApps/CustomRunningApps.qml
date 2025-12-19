@@ -24,6 +24,7 @@ Item {
     property real barSpacing: 4
     property bool isAutoHideBar: false
     property bool stripAppName: PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
+    property real compressionRatio: Math.max(1, Math.min(100000, parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionRatio", "2"))))
     readonly property real horizontalPadding: (barConfig?.noBackground ?? false) ? 2 : Theme.spacingM
     property Item windowRoot: (Window.window ? Window.window.contentItem : null)
 
@@ -115,8 +116,12 @@ Item {
     Connections {
         target: PluginService
         function onPluginDataChanged(pluginId, key) {
-            if (pluginId === "CustomRunningApps" && key === "stripAppName") {
-                root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
+            if (pluginId === "CustomRunningApps") {
+                if (key === "stripAppName") {
+                    root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
+                } else if (key === "compressionRatio") {
+                    root.compressionRatio = Math.max(1, Math.min(100000, parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionRatio", "2"))))
+                }
             }
         }
     }
@@ -295,7 +300,7 @@ Item {
             // Need to shrink - calculate available space for text
             const availableForText = root.availableBarWidth - spacing - padding - (indices.length * root.pillOverhead)
             root.debugInfo = "SHRINK n:" + indices.length + " forText:" + Math.round(availableForText) + " txtSum:" + Math.round(totalTextWidth) + " validIds:" + validIds.length
-            constrainedWidths = redistributeNonLinear(originalWidths, availableForText, 2, indices)
+            constrainedWidths = redistributeNonLinear(originalWidths, availableForText, root.compressionRatio, indices)
             root._widthUpdateTrigger++
         }
 

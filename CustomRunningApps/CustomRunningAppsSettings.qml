@@ -29,4 +29,19 @@ PluginSettings {
         description: "Remove app name, version numbers, and instance markers from window titles"
         defaultValue: true
     }
+
+    SelectionSetting {
+        settingKey: "compressionRatio"
+        label: "Title Compression"
+        description: "How aggressively longer titles are shortened vs shorter ones (1 = equal, higher = longer titles shrink more)"
+        options: [
+            {label: "None (Equal)", value: "1"},
+            {label: "Light (1.5)", value: "1.5"},
+            {label: "Normal (2)", value: "2"},
+            {label: "Strong (3)", value: "3"},
+            {label: "Heavy (5)", value: "5"},
+            {label: "Extreme (10)", value: "10"}
+        ]
+        defaultValue: "2"
+    }
 }

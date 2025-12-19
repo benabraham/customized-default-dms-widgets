@@ -16,6 +16,8 @@ Changes:
 - App name text hidden (`visible: false`)
 - Separator dot hidden
 - Icon displayed alongside title only
+- Settings panel with:
+  - "Strip App Name from Title" - Smart removal of app name, version numbers, instance markers, and brand words from titles
 
 ## CustomMedia
 
@@ -49,6 +51,10 @@ Changes:
 - Grouped windows show badge with count
 - Click cycles through grouped windows
 - Tooltips disabled by default (commented out)
+- **Smart dynamic title width** - Non-linear algorithm shrinks longer titles proportionally more when space is constrained
+- Settings panel with:
+  - "Strip App Name from Title" - Removes app name, version numbers, instance markers from window titles
+  - "Title Compression" - Configurable ratio for how aggressively longer titles shrink (1=equal, 2=normal, up to 10=extreme)
 
 ## CustomSystemTrayBar
 
