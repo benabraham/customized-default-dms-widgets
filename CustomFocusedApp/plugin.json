@@ -6,5 +6,7 @@
     "author": "srb",
     "type": "widget",
     "component": "./CustomFocusedApp.qml",
-    "icon": "window"
+    "settings": "./CustomFocusedAppSettings.qml",
+    "icon": "window",
+    "permissions": ["settings_read", "settings_write"]
 }

@@ -6,5 +6,7 @@
     "author": "srb",
     "type": "widget",
     "component": "./CustomRunningApps.qml",
-    "icon": "apps"
+    "settings": "./CustomRunningAppsSettings.qml",
+    "icon": "apps",
+    "permissions": ["settings_read", "settings_write"]
 }

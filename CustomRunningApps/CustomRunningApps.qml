@@ -23,6 +23,7 @@ Item {
     property real barThickness: 48
     property real barSpacing: 4
     property bool isAutoHideBar: false
+    property bool stripAppName: PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
     readonly property real horizontalPadding: (barConfig?.noBackground ?? false) ? 2 : Theme.spacingM
     property Item windowRoot: (Window.window ? Window.window.contentItem : null)
 
@@ -108,6 +109,15 @@ Item {
         target: DesktopEntries
         function onApplicationsChanged() {
             _desktopEntriesUpdateTrigger++;
+        }
+    }
+
+    Connections {
+        target: PluginService
+        function onPluginDataChanged(pluginId, key) {
+            if (pluginId === "CustomRunningApps" && key === "stripAppName") {
+                root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
+            }
         }
     }
     readonly property var groupedWindows: {
@@ -333,6 +343,38 @@ Item {
         onTriggered: widthManager.doRecalculate()
     }
 
+    // Smart app name stripping: handles versions, instances, and partial names
+    function stripAppNameFromTitle(title, appName) {
+        if (!title || !appName) return title
+
+        const escapedName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+        // Version/instance suffix: [N] and/or X.X.X
+        const suffixPattern = '(?:\\s*\\[\\d+\\])?(?:\\s+v?\\d+(?:\\.\\d+)*(?:-\\w+)?)?'
+        // Separator: hyphen, en-dash, em-dash
+        const sepPattern = '\\s+[-–—]\\s+'
+        // Brand words before app name (e.g., "Google" before "Chrome")
+        const brandPattern = '(?:[A-Z][a-zA-Z]*\\s+)*'
+
+        // Pattern 1: separator + optional brand + appName + suffixes
+        const fullRegex = new RegExp(
+            sepPattern + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
+        )
+        if (fullRegex.test(title)) {
+            return title.replace(fullRegex, '').trim()
+        }
+
+        // Pattern 2: no separator, just trailing app name
+        const noSepRegex = new RegExp(
+            '\\s+' + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
+        )
+        if (noSepRegex.test(title)) {
+            return title.replace(noSepRegex, '').replace(/\s*[-–—]\s*$/, '').trim()
+        }
+
+        return title
+    }
+
     // Smart text shortening with regex: "(.+) - .{2,}$"
     // If match: shorten prefix before " - "
     // If no match: shorten whole string
@@ -495,21 +537,11 @@ Item {
                     property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
                     property string windowTitle: {
                         const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)"
+                        if (!root.stripAppName) return title
                         root._desktopEntriesUpdateTrigger
                         const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null
                         const appName = appId ? Paths.getAppName(appId, desktopEntry) : ""
-
-                        // If title ends with " - AppName", strip it
-                        if (appName && title.endsWith(" - " + appName)) {
-                            return title.substring(0, title.length - (" - " + appName).length)
-                        }
-
-                        // If title ends with "AppName", strip it
-                        if (appName && title.endsWith(appName)) {
-                            return title.substring(0, title.length - appName.length).replace(/ - $/, "")
-                        }
-
-                        return title
+                        return root.stripAppNameFromTitle(title, appName) || title
                     }
                     property var toplevelObject: toplevelData
                     property int windowCount: isGrouped ? modelData.windows.length : 1
@@ -803,7 +835,14 @@ Item {
                     property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
                     property bool isFocused: toplevelData ? toplevelData.activated : false
                     property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
-                    property string windowTitle: toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)"
+                    property string windowTitle: {
+                        const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)"
+                        if (!root.stripAppName) return title
+                        root._desktopEntriesUpdateTrigger
+                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null
+                        const appName = appId ? Paths.getAppName(appId, desktopEntry) : ""
+                        return root.stripAppNameFromTitle(title, appName) || title
+                    }
                     property var toplevelObject: toplevelData
                     property int windowCount: isGrouped ? modelData.windows.length : 1
                     property string tooltipText: {

@@ -21,6 +21,7 @@ BasePill {
     property var activeDesktopEntry: null
     property bool isHovered: mouseArea.containsMouse
     property bool isAutoHideBar: false
+    property bool stripAppName: PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true)
 
     readonly property real minTooltipY: {
         if (!parentScreen || !isVerticalOrientation) {
@@ -50,6 +51,15 @@ BasePill {
     }
 
     Connections {
+        target: PluginService
+        function onPluginDataChanged(pluginId, key) {
+            if (pluginId === "CustomFocusedApp" && key === "stripAppName") {
+                root.stripAppName = PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true)
+            }
+        }
+    }
+
+    Connections {
         target: root
         function onActiveWindowChanged() {
             root.updateDesktopEntry();
@@ -63,6 +73,38 @@ BasePill {
         } else {
             activeDesktopEntry = null;
         }
+    }
+
+    // Smart app name stripping: handles versions, instances, and partial names
+    function stripAppNameFromTitle(title, appName) {
+        if (!title || !appName) return title
+
+        const escapedName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+        // Version/instance suffix: [N] and/or X.X.X
+        const suffixPattern = '(?:\\s*\\[\\d+\\])?(?:\\s+v?\\d+(?:\\.\\d+)*(?:-\\w+)?)?'
+        // Separator: hyphen, en-dash, em-dash
+        const sepPattern = '\\s+[-–—]\\s+'
+        // Brand words before app name (e.g., "Google" before "Chrome")
+        const brandPattern = '(?:[A-Z][a-zA-Z]*\\s+)*'
+
+        // Pattern 1: separator + optional brand + appName + suffixes
+        const fullRegex = new RegExp(
+            sepPattern + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
+        )
+        if (fullRegex.test(title)) {
+            return title.replace(fullRegex, '').trim()
+        }
+
+        // Pattern 2: no separator, just trailing app name
+        const noSepRegex = new RegExp(
+            '\\s+' + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
+        )
+        if (noSepRegex.test(title)) {
+            return title.replace(noSepRegex, '').replace(/\s*[-–—]\s*$/, '').trim()
+        }
+
+        return title
     }
     readonly property bool hasWindowsOnCurrentWorkspace: {
         if (CompositorService.isNiri) {
@@ -223,21 +265,10 @@ BasePill {
                 StyledText {
                     id: titleText
                     text: {
-                        const title = activeWindow && activeWindow.title ? activeWindow.title : "";
-                        const appName = appText.text;
-                        if (!title || !appName) {
-                            return title;
-                        }
-
-                        if (title.endsWith(" - " + appName)) {
-                            return title.substring(0, title.length - (" - " + appName).length);
-                        }
-
-                        if (title.endsWith(appName)) {
-                            return title.substring(0, title.length - appName.length).replace(/ - $/, "");
-                        }
-
-                        return title;
+                        const title = activeWindow && activeWindow.title ? activeWindow.title : ""
+                        if (!root.stripAppName) return title
+                        const appName = appText.text
+                        return root.stripAppNameFromTitle(title, appName)
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
                     color: Theme.widgetTextColor
