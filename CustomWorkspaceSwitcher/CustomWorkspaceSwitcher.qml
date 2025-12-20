@@ -453,6 +453,9 @@ Item {
     readonly property real visualWidth: isVertical ? widgetHeight : (workspaceRow.implicitWidth + padding * 2)
     readonly property real visualHeight: isVertical ? (workspaceRow.implicitHeight + padding * 2) : widgetHeight
     readonly property real appIconSize: Theme.barIconSize(barThickness, -6)
+    readonly property real wsAppIconNormal: 24
+    readonly property real wsAppIconActive: 36
+    readonly property real wsNameIconSize: 24
 
     function getRealWorkspaces() {
         return root.workspaceList.filter(ws => {
@@ -760,22 +763,21 @@ Item {
 
                 readonly property real iconsExtraWidth: {
                     if (!root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
-                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
-                        return (numIcons > 0 ? (numIcons - 1) * 24 + 36 : 0) + (numIcons > 0 ? (numIcons - 1) * Theme.spacingXS : 0);
+                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
+                        return (numIcons > 0 ? (numIcons - 1) * root.wsAppIconNormal + root.wsAppIconActive : 0) + (numIcons > 0 ? (numIcons - 1) * Theme.spacingXS : 0)
                     }
-                    return 0;
+                    return 0
                 }
                 readonly property real iconsExtraHeight: {
                     if (root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
-                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
-                        // one 36px icon + rest 24px + spacing between
-                        return numIcons > 0 ? 24 * (numIcons - 1) + 36 + (numIcons - 1) * appIconSpacing : 0;
+                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
+                        return numIcons > 0 ? root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive + (numIcons - 1) * appIconSpacing : 0
                     }
-                    return 0;
+                    return 0
                 }
 
                 readonly property real visualWidth: baseWidth + iconsExtraWidth
-                readonly property real visualHeight: Math.max(36, baseHeight + iconsExtraHeight + 24 + 4 + (loadedHasIcon ? 24 + 4 : 0))
+                readonly property real visualHeight: Math.max(root.wsAppIconActive, baseHeight + iconsExtraHeight + root.wsAppIconNormal + 4 + (loadedHasIcon ? root.wsAppIconNormal + 4 : 0))
 
                 MouseArea {
                     id: mouseArea
@@ -953,7 +955,7 @@ Item {
                                             id: wsIcon
                                             anchors.verticalCenter: parent.verticalCenter
                                             name: loadedIconData?.value ?? ""
-                                            size: 24
+                                            size: root.wsNameIconSize
                                             color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
                                             weight: (isActive && !isPlaceholder) ? 500 : 400
                                         }
@@ -994,12 +996,12 @@ Item {
                                             values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                         }
                                         delegate: Item {
-                                            width: 36
-                                            height: modelData.active ? 36 : 24
+                                            width: root.wsAppIconActive
+                                            height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
 
                                             IconImage {
                                                 id: rowAppIcon
-                                                width: modelData.active ? 36 : 24; height: modelData.active ? 36 : 24; anchors.centerIn: parent
+                                                width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; anchors.centerIn: parent
                                                 source: modelData.icon
                                                 opacity: 1.0
                                                 visible: !modelData.isSteamApp && !modelData.isQuickshell
@@ -1020,7 +1022,7 @@ Item {
 
                                             DankIcon {
                                                 anchors.centerIn: parent
-                                                size: 24
+                                                size: root.wsAppIconNormal
                                                 name: "sports_esports"
                                                 color: Theme.widgetTextColor
                                                 opacity: 1.0
@@ -1075,7 +1077,7 @@ Item {
                                     visible: true || loadedHasIcon
 
                                     Column {
-                                        width: 36
+                                        width: root.wsAppIconActive
                                         spacing: 0
                                         visible: true || loadedHasIcon
 
@@ -1091,7 +1093,7 @@ Item {
                                             visible: loadedHasIcon && loadedIconData?.type === "icon"
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             name: loadedIconData?.value ?? ""
-                                            size: 24
+                                            size: root.wsNameIconSize
                                             color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
                                             weight: (isActive && !isPlaceholder) ? 500 : 400
                                         }
@@ -1108,14 +1110,14 @@ Item {
 
                                     ColumnLayout {
                                         id: colIconsLayout
-                                        width: 36
+                                        width: root.wsAppIconActive
 
                                         // Calculate distribution values for space-evenly (non-focused) vs space-between (focused)
                                         property int numIcons: Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
                                         property int activeCount: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons).filter(i => i.active).length
 
-                                        property real iconsHeight: 24 * (numIcons - activeCount) + 36 * activeCount
-                                        property real totalHeight: numIcons > 0 ? 24 * (numIcons - 1) + 36 + (numIcons - 1) * appIconSpacing : 0
+                                        property real iconsHeight: root.wsAppIconNormal * (numIcons - activeCount) + root.wsAppIconActive * activeCount
+                                        property real totalHeight: numIcons > 0 ? root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive + (numIcons - 1) * appIconSpacing : 0
                                         property real remaining: totalHeight - iconsHeight
                                         property real gapSize: numIcons <= 1 ? 0 : (isActive ? remaining / (numIcons - 1) : remaining / (numIcons + 1))
                                         property real evenlyPadding: isActive ? 0 : gapSize
@@ -1128,14 +1130,14 @@ Item {
                                                 values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                             }
                                             delegate: Item {
-                                                Layout.preferredHeight: modelData.active ? 36 : 24
-                                                Layout.preferredWidth: 36
+                                                Layout.preferredHeight: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                Layout.preferredWidth: root.wsAppIconActive
                                                 Layout.topMargin: index === 0 ? colIconsLayout.evenlyPadding * 1  : 0
                                                 Layout.bottomMargin: index === colIconsLayout.numIcons - 1 ? colIconsLayout.evenlyPadding * 1 : 0
 
                                                 IconImage {
                                                     id: colAppIcon
-                                                    width: modelData.active ? 36 : 24; height: modelData.active ? 36 : 24; anchors.centerIn: parent
+                                                    width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; anchors.centerIn: parent
                                                     source: modelData.icon
                                                     visible: !modelData.isSteamApp && !modelData.isQuickshell
                                                 }
@@ -1154,7 +1156,7 @@ Item {
 
                                                 DankIcon {
                                                     anchors.centerIn: parent
-                                                    size: 24
+                                                    size: root.wsAppIconNormal
                                                     name: "sports_esports"
                                                     color: Theme.widgetTextColor
                                                     opacity: 1.0
