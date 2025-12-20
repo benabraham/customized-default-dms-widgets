@@ -453,10 +453,23 @@ Item {
     readonly property real visualWidth: isVertical ? widgetHeight : (workspaceRow.implicitWidth + padding * 2)
     readonly property real visualHeight: isVertical ? (workspaceRow.implicitHeight + padding * 2) : widgetHeight
     readonly property real appIconSize: Theme.barIconSize(barThickness, -6)
-    readonly property real wsAppIconNormal: 24
-    readonly property real wsAppIconActive: 36
-    readonly property real wsNameIconSize: 24
-    readonly property real wsAppIconGap: 1
+
+    // Configurable icon sizes (loaded from plugin settings)
+    property real wsAppIconNormal: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconNormal", 24)
+    property real wsAppIconActive: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconActive", 36)
+    property real wsNameIconSize: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsNameIconSize", 24)
+    property real wsAppIconGap: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconGap", 1)
+
+    Connections {
+        target: PluginService
+        function onPluginDataChanged(pluginId, key, value) {
+            if (pluginId !== "CustomWorkspaceSwitcher") return
+            if (key === "wsAppIconNormal") root.wsAppIconNormal = value
+            else if (key === "wsAppIconActive") root.wsAppIconActive = value
+            else if (key === "wsNameIconSize") root.wsNameIconSize = value
+            else if (key === "wsAppIconGap") root.wsAppIconGap = value
+        }
+    }
 
     function getRealWorkspaces() {
         return root.workspaceList.filter(ws => {

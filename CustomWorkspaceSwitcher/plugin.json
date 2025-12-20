@@ -6,5 +6,7 @@
     "author": "srb",
     "type": "widget",
     "component": "./CustomWorkspaceSwitcher.qml",
-    "icon": "view_module"
+    "settings": "./CustomWorkspaceSwitcherSettings.qml",
+    "icon": "view_module",
+    "permissions": ["settings_read", "settings_write"]
 }
