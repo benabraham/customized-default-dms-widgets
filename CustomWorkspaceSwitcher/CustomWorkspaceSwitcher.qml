@@ -456,6 +456,7 @@ Item {
     readonly property real wsAppIconNormal: 24
     readonly property real wsAppIconActive: 36
     readonly property real wsNameIconSize: 24
+    readonly property real wsAppIconGap: 1
 
     function getRealWorkspaces() {
         return root.workspaceList.filter(ws => {
@@ -759,21 +760,26 @@ Item {
 
                 readonly property real baseWidth: root.isVertical ? root.barThickness : Theme.spacingS
                 readonly property real baseHeight: root.isVertical ? Theme.spacingS : (SettingsData.showWorkspaceApps ? widgetHeight * 1.0 : widgetHeight * 0.5)
-                readonly property int appIconSpacing: 0
 
                 readonly property real iconsExtraWidth: {
                     if (!root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
-                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
-                        return (numIcons > 0 ? (numIcons - 1) * root.wsAppIconNormal + root.wsAppIconActive : 0) + (numIcons > 0 ? (numIcons - 1) * Theme.spacingXS : 0)
+                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
+                        return (numIcons > 0 ? (numIcons - 1) * root.wsAppIconNormal + root.wsAppIconActive : 0) + (numIcons > 0 ? (numIcons - 1) * Theme.spacingXS : 0);
                     }
-                    return 0
+                    return 0;
                 }
                 readonly property real iconsExtraHeight: {
                     if (root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
-                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
-                        return numIcons > 0 ? root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive + (numIcons - 1) * appIconSpacing : 0
+                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
+                        if (numIcons === 2) {
+                            // 2 icons: both could be active, gap anchored at center
+                            return root.wsAppIconActive * 2 + root.wsAppIconGap;
+                        }
+                        // 3+ icons: (n-1) normal + 1 active + (n-1) minimum gaps
+                        const baseIconsHeight = root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive;
+                        return numIcons > 0 ? baseIconsHeight + (numIcons - 1) * root.wsAppIconGap : 0;
                     }
-                    return 0
+                    return 0;
                 }
 
                 readonly property real visualWidth: baseWidth + iconsExtraWidth
@@ -1001,7 +1007,9 @@ Item {
 
                                             IconImage {
                                                 id: rowAppIcon
-                                                width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; anchors.centerIn: parent
+                                                width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                anchors.centerIn: parent
                                                 source: modelData.icon
                                                 opacity: 1.0
                                                 visible: !modelData.isSteamApp && !modelData.isQuickshell
@@ -1112,15 +1120,37 @@ Item {
                                         id: colIconsLayout
                                         width: root.wsAppIconActive
 
-                                        // Calculate distribution values for space-evenly (non-focused) vs space-between (focused)
+                                        // Icon counts
                                         property int numIcons: Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
                                         property int activeCount: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons).filter(i => i.active).length
 
-                                        property real iconsHeight: root.wsAppIconNormal * (numIcons - activeCount) + root.wsAppIconActive * activeCount
-                                        property real totalHeight: numIcons > 0 ? root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive + (numIcons - 1) * appIconSpacing : 0
-                                        property real remaining: totalHeight - iconsHeight
-                                        property real gapSize: numIcons <= 1 ? 0 : (isActive ? remaining / (numIcons - 1) : remaining / (numIcons + 1))
-                                        property real evenlyPadding: isActive ? 0 : gapSize
+                                        // Container height:
+                                        // - 2 icons: sized for both active (gap anchored at center)
+                                        // - 3+ icons: sized for 1 active (space-between)
+                                        property real totalHeight: {
+                                            if (numIcons === 2) {
+                                                // Both icons could be active, gap stays centered
+                                                return root.wsAppIconActive * 2 + root.wsAppIconGap
+                                            }
+                                            // For 3+: (n-1) normal + 1 active + gaps
+                                            const baseIconsHeight = root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive
+                                            return numIcons > 0 ? baseIconsHeight + (numIcons - 1) * root.wsAppIconGap : 0
+                                        }
+
+                                        // Actual icons height based on current active state
+                                        property real actualIconsHeight: root.wsAppIconNormal * (numIcons - activeCount) + root.wsAppIconActive * activeCount
+
+                                        // Available space for gaps (3+ icons only)
+                                        property real availableForGaps: totalHeight - actualIconsHeight
+
+                                        // Gap size:
+                                        // - 2 icons: fixed gap
+                                        // - 3+ icons: distributed
+                                        property real gapSize: {
+                                            if (numIcons <= 1) return 0
+                                            if (numIcons === 2) return root.wsAppIconGap
+                                            return availableForGaps / (numIcons - 1)
+                                        }
 
                                         height: totalHeight
                                         spacing: Math.max(0, gapSize)
@@ -1130,14 +1160,21 @@ Item {
                                                 values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                             }
                                             delegate: Item {
-                                                Layout.preferredHeight: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                property real iconHeight: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+
+                                                Layout.preferredHeight: iconHeight
                                                 Layout.preferredWidth: root.wsAppIconActive
-                                                Layout.topMargin: index === 0 ? colIconsLayout.evenlyPadding * 1  : 0
-                                                Layout.bottomMargin: index === colIconsLayout.numIcons - 1 ? colIconsLayout.evenlyPadding * 1 : 0
+                                                // For 2 icons: anchor first's bottom and second's top to the gap
+                                                // First icon grows upward (add top margin when smaller)
+                                                // Second icon grows downward (add bottom margin when smaller)
+                                                Layout.topMargin: (colIconsLayout.numIcons === 2 && index === 0) ? (root.wsAppIconActive - iconHeight) : 0
+                                                Layout.bottomMargin: (colIconsLayout.numIcons === 2 && index === 1) ? (root.wsAppIconActive - iconHeight) : 0
 
                                                 IconImage {
                                                     id: colAppIcon
-                                                    width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal; anchors.centerIn: parent
+                                                    width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                    height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                    anchors.centerIn: parent
                                                     source: modelData.icon
                                                     visible: !modelData.isSteamApp && !modelData.isQuickshell
                                                 }
@@ -1170,36 +1207,36 @@ Item {
                                                     cursorShape: Qt.PointingHandCursor
                                                     onClicked: {
                                                         const winId = modelData.windowId;
-                                                    if (!winId)
-                                                        return;
-                                                    if (CompositorService.isHyprland) {
-                                                        Hyprland.dispatch(`focuswindow address:${winId}`);
-                                                    } else if (CompositorService.isNiri) {
-                                                        NiriService.focusWindow(winId);
+                                                        if (!winId)
+                                                            return;
+                                                        if (CompositorService.isHyprland) {
+                                                            Hyprland.dispatch(`focuswindow address:${winId}`);
+                                                        } else if (CompositorService.isNiri) {
+                                                            NiriService.focusWindow(winId);
+                                                        }
+                                                    }
+                                                }
+
+                                                Rectangle {
+                                                    visible: modelData.count > 1 && !isActive
+                                                    width: root.appIconSize * 0.67
+                                                    height: root.appIconSize * 0.67
+                                                    radius: root.appIconSize * 0.33
+                                                    color: "black"
+                                                    border.color: "white"
+                                                    border.width: 1
+                                                    anchors.right: parent.right
+                                                    anchors.bottom: parent.bottom
+                                                    z: 2
+
+                                                    Text {
+                                                        anchors.centerIn: parent
+                                                        text: modelData.count
+                                                        font.pixelSize: root.appIconSize * 0.44
+                                                        color: "white"
                                                     }
                                                 }
                                             }
-
-                                            Rectangle {
-                                                visible: modelData.count > 1 && !isActive
-                                                width: root.appIconSize * 0.67
-                                                height: root.appIconSize * 0.67
-                                                radius: root.appIconSize * 0.33
-                                                color: "black"
-                                                border.color: "white"
-                                                border.width: 1
-                                                anchors.right: parent.right
-                                                anchors.bottom: parent.bottom
-                                                z: 2
-
-                                                Text {
-                                                    anchors.centerIn: parent
-                                                    text: modelData.count
-                                                    font.pixelSize: root.appIconSize * 0.44
-                                                    color: "white"
-                                                }
-                                            }
-                                        }
                                         }
                                     }
                                 }
