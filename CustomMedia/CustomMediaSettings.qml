@@ -28,10 +28,22 @@ PluginSettings {
         label: "Widget Size"
         description: "Controls how much track info is displayed"
         options: [
-            {label: "Icon Only", value: "0"},
-            {label: "Small (120px)", value: "1"},
-            {label: "Large (180px)", value: "2"},
-            {label: "Unlimited", value: "3"}
+            {
+                label: "Icon Only",
+                value: "0"
+            },
+            {
+                label: "Small (120px)",
+                value: "1"
+            },
+            {
+                label: "Large (180px)",
+                value: "2"
+            },
+            {
+                label: "Unlimited",
+                value: "3"
+            }
         ]
         defaultValue: "3"
     }

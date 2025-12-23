@@ -8,58 +8,90 @@ PluginSettings {
     id: root
     pluginId: "CustomWorkspaceSwitcher"
 
-    StyledText {
-        text: "Custom Workspace Switcher"
-        font.pixelSize: Theme.fontSizeLarge
-        font.weight: Font.Bold
-        color: Theme.surfaceText
-    }
+    // Compute dynamic gap minimum from sibling slider values
+    property real sizeDiff: Math.abs(activeSlider.value - normalSlider.value)
 
-    StyledText {
-        text: "Workspace switcher with configurable app icon sizes for vertical bar layout."
-        font.pixelSize: Theme.fontSizeSmall
-        color: Theme.surfaceVariantText
-        wrapMode: Text.WordWrap
-        width: parent.width
-    }
-
-    SliderSetting {
+    SteppedSliderSetting {
+        id: normalSlider
         settingKey: "wsAppIconNormal"
-        label: "Normal Icon Size"
-        description: "Size of inactive/unfocused app icons in pixels"
+        label: "Normal App Icon Size"
         minimum: 8
         maximum: 64
+        stepSize: 2
         defaultValue: 24
         unit: "px"
     }
 
-    SliderSetting {
+    SteppedSliderSetting {
+        id: activeSlider
         settingKey: "wsAppIconActive"
-        label: "Active Icon Size"
-        description: "Size of focused app icon in pixels"
+        label: "Active (Focused App) Icon Size"
         minimum: 8
         maximum: 64
+        stepSize: 2
         defaultValue: 36
         unit: "px"
     }
 
-    SliderSetting {
+    SteppedSliderSetting {
         settingKey: "wsNameIconSize"
         label: "Workspace Name Icon Size"
-        description: "Size of workspace name indicator icons in pixels"
         minimum: 8
         maximum: 64
+        stepSize: 2
         defaultValue: 24
         unit: "px"
     }
 
-    SliderSetting {
+    SteppedSliderSetting {
+        id: gapSlider
         settingKey: "wsAppIconGap"
         label: "Icon Gap"
-        description: "Minimum spacing between app icons in pixels"
-        minimum: 0
-        maximum: 32
-        defaultValue: 1
+        description: "Spacing between icons (negative will make them move a bit when changing workspaces)"
+        minimum: Math.round(-root.sizeDiff / 2)
+        maximum: 12
+        stepSize: 1
+        defaultValue: 0
         unit: "px"
+    }
+
+    LabeledSliderSetting {
+        settingKey: "wsGapPreset"
+        label: "Workspace Gap"
+        description: "Spacing between workspace indicators"
+        options: [
+            {
+                label: "None",
+                value: "0"
+            },
+            {
+                label: "XS",
+                value: "XS"
+            },
+            {
+                label: "S",
+                value: "S"
+            },
+            {
+                label: "M",
+                value: "M"
+            },
+            {
+                label: "L",
+                value: "L"
+            },
+            {
+                label: "XL",
+                value: "XL"
+            }
+        ]
+        defaultValue: "XL"
+    }
+
+    ToggleSetting {
+        settingKey: "debugMode"
+        label: "Debug Mode"
+        description: "Show colored rectangles to visualize icon wrapper and bounds"
+        defaultValue: false
     }
 }

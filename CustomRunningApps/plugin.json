@@ -1,12 +1,12 @@
 {
-    "id": "CustomRunningApps",
-    "name": "Custom Running Apps",
-    "version": "1.0.0",
-    "description": "Running apps with larger icons, dynamic title width, and enhanced active styling",
-    "author": "srb",
-    "type": "widget",
-    "component": "./CustomRunningApps.qml",
-    "settings": "./CustomRunningAppsSettings.qml",
-    "icon": "apps",
-    "permissions": ["settings_read", "settings_write"]
+  "id": "CustomRunningApps",
+  "name": "Custom Running Apps",
+  "version": "1.0.0",
+  "description": "Running apps with larger icons, dynamic title width, and enhanced active styling",
+  "author": "srb",
+  "type": "widget",
+  "component": "./CustomRunningApps.qml",
+  "settings": "./CustomRunningAppsSettings.qml",
+  "icon": "apps",
+  "permissions": ["settings_read", "settings_write"]
 }

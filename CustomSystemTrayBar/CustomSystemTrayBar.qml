@@ -22,7 +22,7 @@ Item {
     property bool isAtBottom: false
     property var barConfig: null
     property bool isAutoHideBar: false
-    readonly property real iconSize: Math.round(Theme.barIconSize(barThickness) * (1 + 1/3))
+    readonly property real iconSize: Math.round(Theme.barIconSize(barThickness) * (1 + 1 / 3))
     readonly property real iconContainerSize: iconSize
     readonly property real iconSpacing: Theme.spacingM
     readonly property real horizontalPadding: (barConfig?.noBackground ?? false) ? 2 : Theme.spacingS
@@ -52,7 +52,7 @@ Item {
         target: PluginService
         function onPluginDataChanged(pluginId) {
             if (pluginId === "SortedSystemTray") {
-                root.trayIconOrder = PluginService.loadPluginData("SortedSystemTray", "trayIconOrder", [])
+                root.trayIconOrder = PluginService.loadPluginData("SortedSystemTray", "trayIconOrder", []);
             }
         }
     }
@@ -60,29 +60,30 @@ Item {
     // Get order value for a tray item by matching against regex patterns
     // Matches against id, title, and tooltipTitle
     function getTrayItemOrder(item) {
-        if (!item) return 50
-        const id = (item.id || "").toLowerCase()
-        const title = (item.title || "").toLowerCase()
-        const tooltip = (item.tooltipTitle || "").toLowerCase()
+        if (!item)
+            return 50;
+        const id = (item.id || "").toLowerCase();
+        const title = (item.title || "").toLowerCase();
+        const tooltip = (item.tooltipTitle || "").toLowerCase();
 
         for (const rule of trayIconOrder) {
             try {
-                const regex = new RegExp(rule.pattern, 'i')
+                const regex = new RegExp(rule.pattern, 'i');
                 if (regex.test(id) || regex.test(title) || regex.test(tooltip)) {
-                    return rule.order ?? 50
+                    return rule.order ?? 50;
                 }
             } catch (e) {
-                console.warn("SortedSystemTray: Invalid regex pattern:", rule.pattern)
+                console.warn("SortedSystemTray: Invalid regex pattern:", rule.pattern);
             }
         }
-        return 0  // default order for unmatched items
+        return 0;  // default order for unmatched items
     }
 
     // Sorted version of mainBarItems
     readonly property var sortedMainBarItems: {
         return [...mainBarItems].sort((a, b) => {
-            return getTrayItemOrder(a) - getTrayItemOrder(b)
-        })
+            return getTrayItemOrder(a) - getTrayItemOrder(b);
+        });
     }
     // === END SORTING FEATURE ===
 

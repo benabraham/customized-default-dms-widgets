@@ -15,14 +15,16 @@ FocusScope {
 
     // Load rules from storage, sorted by order
     property var orderRules: {
-        const rules = loadSettings("trayIconOrder", [])
-        return rules.sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        const rules = loadSettings("trayIconOrder", []);
+        return rules.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
     property bool hasUnsavedChanges: false
     property bool isLoaded: false
 
     Component.onCompleted: {
-        Qt.callLater(() => { isLoaded = true })
+        Qt.callLater(() => {
+            isLoaded = true;
+        });
     }
 
     Column {
@@ -154,7 +156,10 @@ FocusScope {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                Item { width: parent.width - 320; height: 1 }
+                Item {
+                    width: parent.width - 320
+                    height: 1
+                }
 
                 Rectangle {
                     width: 80
@@ -175,10 +180,14 @@ FocusScope {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            const newRules = [...orderRules]
-                            newRules.push({ pattern: "^new-app", order: 50, note: "" })
-                            orderRules = newRules
-                            hasUnsavedChanges = true
+                            const newRules = [...orderRules];
+                            newRules.push({
+                                pattern: "^new-app",
+                                order: 50,
+                                note: ""
+                            });
+                            orderRules = newRules;
+                            hasUnsavedChanges = true;
                         }
                     }
                 }
@@ -205,8 +214,8 @@ FocusScope {
                         cursorShape: hasUnsavedChanges ? Qt.PointingHandCursor : Qt.ArrowCursor
                         onClicked: {
                             if (hasUnsavedChanges) {
-                                saveSettings("trayIconOrder", orderRules)
-                                hasUnsavedChanges = false
+                                saveSettings("trayIconOrder", orderRules);
+                                hasUnsavedChanges = false;
                             }
                         }
                     }
@@ -270,28 +279,28 @@ FocusScope {
                                         preventStealing: true
 
                                         onPressed: {
-                                            delegateItem.z = 2
-                                            delegateItem.originalY = delegateItem.y
+                                            delegateItem.z = 2;
+                                            delegateItem.originalY = delegateItem.y;
                                         }
                                         onReleased: {
-                                            delegateItem.z = 1
+                                            delegateItem.z = 1;
                                             if (drag.active) {
-                                                var newIndex = Math.round(delegateItem.y / (delegateItem.height + rulesColumn.spacing))
-                                                newIndex = Math.max(0, Math.min(newIndex, orderRules.length - 1))
+                                                var newIndex = Math.round(delegateItem.y / (delegateItem.height + rulesColumn.spacing));
+                                                newIndex = Math.max(0, Math.min(newIndex, orderRules.length - 1));
                                                 if (newIndex !== index) {
-                                                    var newRules = [...orderRules]
-                                                    var draggedItem = newRules.splice(index, 1)[0]
-                                                    newRules.splice(newIndex, 0, draggedItem)
+                                                    var newRules = [...orderRules];
+                                                    var draggedItem = newRules.splice(index, 1)[0];
+                                                    newRules.splice(newIndex, 0, draggedItem);
                                                     // Auto-assign order values based on position
                                                     for (var i = 0; i < newRules.length; i++) {
-                                                        newRules[i].order = (i + 1) * 10
+                                                        newRules[i].order = (i + 1) * 10;
                                                     }
-                                                    orderRules = newRules
-                                                    hasUnsavedChanges = true
+                                                    orderRules = newRules;
+                                                    hasUnsavedChanges = true;
                                                 }
                                             }
-                                            delegateItem.x = 0
-                                            delegateItem.y = delegateItem.originalY
+                                            delegateItem.x = 0;
+                                            delegateItem.y = delegateItem.originalY;
                                         }
                                     }
                                 }
@@ -327,8 +336,8 @@ FocusScope {
 
                                                 onTextEdited: {
                                                     if (isLoaded && orderRules[index]) {
-                                                        orderRules[index].pattern = text
-                                                        hasUnsavedChanges = true
+                                                        orderRules[index].pattern = text;
+                                                        hasUnsavedChanges = true;
                                                     }
                                                 }
                                             }
@@ -355,10 +364,10 @@ FocusScope {
                                                 hoverEnabled: true
                                                 cursorShape: Qt.PointingHandCursor
                                                 onClicked: {
-                                                    const newRules = [...orderRules]
-                                                    newRules.splice(index, 1)
-                                                    orderRules = newRules
-                                                    hasUnsavedChanges = true
+                                                    const newRules = [...orderRules];
+                                                    newRules.splice(index, 1);
+                                                    orderRules = newRules;
+                                                    hasUnsavedChanges = true;
                                                 }
                                             }
                                         }
@@ -383,8 +392,8 @@ FocusScope {
 
                                             onTextEdited: {
                                                 if (isLoaded && orderRules[index]) {
-                                                    orderRules[index].note = text
-                                                    hasUnsavedChanges = true
+                                                    orderRules[index].note = text;
+                                                    hasUnsavedChanges = true;
                                                 }
                                             }
                                         }
@@ -473,46 +482,47 @@ FocusScope {
 
     function saveSettings(key, value) {
         if (pluginService) {
-            pluginService.savePluginData("SortedSystemTray", key, value)
-            pluginService.pluginDataChanged("SortedSystemTray")
+            pluginService.savePluginData("SortedSystemTray", key, value);
+            pluginService.pluginDataChanged("SortedSystemTray");
         }
     }
 
     function loadSettings(key, defaultValue) {
         if (pluginService) {
-            return pluginService.loadPluginData("SortedSystemTray", key, defaultValue)
+            return pluginService.loadPluginData("SortedSystemTray", key, defaultValue);
         }
-        return defaultValue
+        return defaultValue;
     }
 
     // Get order value for a tray item (matches id, title, tooltipTitle)
     function getTrayItemOrder(item) {
-        if (!item) return 50
-        const id = (item.id || "").toLowerCase()
-        const title = (item.title || "").toLowerCase()
-        const tooltip = (item.tooltipTitle || "").toLowerCase()
+        if (!item)
+            return 50;
+        const id = (item.id || "").toLowerCase();
+        const title = (item.title || "").toLowerCase();
+        const tooltip = (item.tooltipTitle || "").toLowerCase();
 
         for (const rule of orderRules) {
             try {
-                const regex = new RegExp(rule.pattern, 'i')
+                const regex = new RegExp(rule.pattern, 'i');
                 if (regex.test(id) || regex.test(title) || regex.test(tooltip)) {
-                    return rule.order ?? 50
+                    return rule.order ?? 50;
                 }
             } catch (e) {
                 // Invalid regex, skip
             }
         }
-        return 0
+        return 0;
     }
 
     // Get sorted tray items for preview
     function getSortedTrayItems() {
         const items = SystemTray.items.values.map(item => ({
-            id: item?.id || "unknown",
-            title: item?.title || "",
-            tooltipTitle: item?.tooltipTitle || "",
-            order: getTrayItemOrder(item)
-        }))
-        return items.sort((a, b) => a.order - b.order)
+                    id: item?.id || "unknown",
+                    title: item?.title || "",
+                    tooltipTitle: item?.tooltipTitle || "",
+                    order: getTrayItemOrder(item)
+                }));
+        return items.sort((a, b) => a.order - b.order);
     }
 }

@@ -118,9 +118,9 @@ Item {
         function onPluginDataChanged(pluginId, key) {
             if (pluginId === "CustomRunningApps") {
                 if (key === "stripAppName") {
-                    root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
+                    root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true);
                 } else if (key === "compressionRatio") {
-                    root.compressionRatio = Math.max(1, Math.min(100000, parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionRatio", "2"))))
+                    root.compressionRatio = Math.max(1, Math.min(100000, parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionRatio", "2"))));
                 }
             }
         }
@@ -159,19 +159,20 @@ Item {
 
     // Get list of valid stableIds for current visible items
     readonly property var visibleStableIds: {
-        const result = []
-        const isGrouped = SettingsData.runningAppsGroupByApp
-        const items = isGrouped ? groupedWindows : sortedToplevels
-        if (!items) return result
+        const result = [];
+        const isGrouped = SettingsData.runningAppsGroupByApp;
+        const items = isGrouped ? groupedWindows : sortedToplevels;
+        if (!items)
+            return result;
         for (let i = 0; i < items.length; i++) {
-            const item = items[i]
+            const item = items[i];
             if (isGrouped) {
-                result.push(item.appId)
+                result.push(item.appId);
             } else {
-                result.push(item?.address ?? i.toString())
+                result.push(item?.address ?? i.toString());
             }
         }
-        return result
+        return result;
     }
     readonly property real contentSize: layoutLoader.item ? (isVertical ? layoutLoader.item.implicitHeight : layoutLoader.item.implicitWidth) : 0
     readonly property real calculatedSize: contentSize + horizontalPadding * 2
@@ -256,89 +257,95 @@ Item {
         property var constrainedWidths: ({})   // index -> max allowed text width (-1 = unconstrained)
 
         function register(idx, naturalWidth) {
-            originalWidths[idx] = naturalWidth
-            recalculate()
+            originalWidths[idx] = naturalWidth;
+            recalculate();
         }
 
         function unregister(idx) {
-            delete originalWidths[idx]
-            delete constrainedWidths[idx]
-            recalculate()
+            delete originalWidths[idx];
+            delete constrainedWidths[idx];
+            recalculate();
         }
 
         function recalculate() {
-            recalcTimer.restart()
+            recalcTimer.restart();
         }
 
         function doRecalculate() {
             // Only include items that are actually visible (filter by visibleStableIds)
-            const validIds = root.visibleStableIds
-            const indices = Object.keys(originalWidths).filter(idx => validIds.includes(idx))
-            if (indices.length === 0) { constrainedWidths = {}; return }
+            const validIds = root.visibleStableIds;
+            const indices = Object.keys(originalWidths).filter(idx => validIds.includes(idx));
+            if (indices.length === 0) {
+                constrainedWidths = {};
+                return;
+            }
 
             // Calculate total natural width
-            const spacing = (indices.length - 1) * Theme.spacingS
-            const padding = root.horizontalPadding * 2
-            let totalWidth = spacing + padding
-            let totalTextWidth = 0
+            const spacing = (indices.length - 1) * Theme.spacingS;
+            const padding = root.horizontalPadding * 2;
+            let totalWidth = spacing + padding;
+            let totalTextWidth = 0;
 
             for (const idx of indices) {
-                totalWidth += root.pillOverhead + originalWidths[idx]
-                totalTextWidth += originalWidths[idx]
+                totalWidth += root.pillOverhead + originalWidths[idx];
+                totalTextWidth += originalWidths[idx];
             }
 
             // If fits, no constraint
             if (totalWidth <= root.availableBarWidth || root.availableBarWidth <= 0) {
-                const result = {}
-                for (const idx of indices) result[idx] = -1
-                constrainedWidths = result
-                root._widthUpdateTrigger++
-                root.debugInfo = "FITS avail:" + Math.round(root.availableBarWidth) + " total:" + Math.round(totalWidth)
-                return
+                const result = {};
+                for (const idx of indices)
+                    result[idx] = -1;
+                constrainedWidths = result;
+                root._widthUpdateTrigger++;
+                root.debugInfo = "FITS avail:" + Math.round(root.availableBarWidth) + " total:" + Math.round(totalWidth);
+                return;
             }
 
             // Need to shrink - calculate available space for text
-            const availableForText = root.availableBarWidth - spacing - padding - (indices.length * root.pillOverhead)
-            root.debugInfo = "SHRINK n:" + indices.length + " forText:" + Math.round(availableForText) + " txtSum:" + Math.round(totalTextWidth) + " validIds:" + validIds.length
-            constrainedWidths = redistributeNonLinear(originalWidths, availableForText, root.compressionRatio, indices)
-            root._widthUpdateTrigger++
+            const availableForText = root.availableBarWidth - spacing - padding - (indices.length * root.pillOverhead);
+            root.debugInfo = "SHRINK n:" + indices.length + " forText:" + Math.round(availableForText) + " txtSum:" + Math.round(totalTextWidth) + " validIds:" + validIds.length;
+            constrainedWidths = redistributeNonLinear(originalWidths, availableForText, root.compressionRatio, indices);
+            root._widthUpdateTrigger++;
         }
 
         // Shrinkage-based distribution: larger items absorb more shrinkage
         function redistributeNonLinear(widths, available, exponent, filteredIndices) {
-            const indices = filteredIndices || Object.keys(widths)
+            const indices = filteredIndices || Object.keys(widths);
 
-            let totalOriginal = 0
-            for (const idx of indices) totalOriginal += widths[idx]
+            let totalOriginal = 0;
+            for (const idx of indices)
+                totalOriginal += widths[idx];
 
             // If fits, no shrinking
             if (totalOriginal <= available) {
-                const result = {}
-                for (const idx of indices) result[idx] = widths[idx]
-                return result
+                const result = {};
+                for (const idx of indices)
+                    result[idx] = widths[idx];
+                return result;
             }
 
-            const totalShrinkage = totalOriginal - available
+            const totalShrinkage = totalOriginal - available;
 
             // Calculate weights: larger items get higher weight = more shrinkage
-            let totalWeight = 0
-            const weights = {}
+            let totalWeight = 0;
+            const weights = {};
             for (const idx of indices) {
-                weights[idx] = Math.pow(widths[idx], exponent)
-                totalWeight += weights[idx]
+                weights[idx] = Math.pow(widths[idx], exponent);
+                totalWeight += weights[idx];
             }
 
             // Distribute shrinkage proportionally to weight
-            const result = {}
-            let resultSum = 0
+            const result = {};
+            let resultSum = 0;
             for (const idx of indices) {
-                const shrink = (weights[idx] / totalWeight) * totalShrinkage
-                result[idx] = widths[idx] - shrink
-                resultSum += result[idx]
+                const shrink = (weights[idx] / totalWeight) * totalShrinkage;
+                result[idx] = widths[idx] - shrink;
+                resultSum += result[idx];
             }
 
-            root.debugInfo += " resultSum:" + Math.round(resultSum)
-            return result
+            root.debugInfo += " resultSum:" + Math.round(resultSum);
+            return result;
         }
     }
 
@@ -350,81 +357,83 @@ Item {
 
     // Smart app name stripping: handles versions, instances, and partial names
     function stripAppNameFromTitle(title, appName) {
-        if (!title || !appName) return title
+        if (!title || !appName)
+            return title;
 
-        const escapedName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const escapedName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
         // Version/instance suffix: [N] and/or X.X.X
-        const suffixPattern = '(?:\\s*\\[\\d+\\])?(?:\\s+v?\\d+(?:\\.\\d+)*(?:-\\w+)?)?'
+        const suffixPattern = '(?:\\s*\\[\\d+\\])?(?:\\s+v?\\d+(?:\\.\\d+)*(?:-\\w+)?)?';
         // Separator: hyphen, en-dash, em-dash
-        const sepPattern = '\\s+[-–—]\\s+'
+        const sepPattern = '\\s+[-–—]\\s+';
         // Brand words before app name (e.g., "Google" before "Chrome")
-        const brandPattern = '(?:[A-Z][a-zA-Z]*\\s+)*'
+        const brandPattern = '(?:[A-Z][a-zA-Z]*\\s+)*';
 
         // Pattern 1: separator + optional brand + appName + suffixes
-        const fullRegex = new RegExp(
-            sepPattern + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
-        )
+        const fullRegex = new RegExp(sepPattern + brandPattern + escapedName + suffixPattern + '\\s*$', 'i');
         if (fullRegex.test(title)) {
-            return title.replace(fullRegex, '').trim()
+            return title.replace(fullRegex, '').trim();
         }
 
         // Pattern 2: no separator, just trailing app name
-        const noSepRegex = new RegExp(
-            '\\s+' + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
-        )
+        const noSepRegex = new RegExp('\\s+' + brandPattern + escapedName + suffixPattern + '\\s*$', 'i');
         if (noSepRegex.test(title)) {
-            return title.replace(noSepRegex, '').replace(/\s*[-–—]\s*$/, '').trim()
+            return title.replace(noSepRegex, '').replace(/\s*[-–—]\s*$/, '').trim();
         }
 
-        return title
+        return title;
     }
 
     // Smart text shortening with regex: "(.+) - .{2,}$"
     // If match: shorten prefix before " - "
     // If no match: shorten whole string
     function shortenTextSmart(text, maxWidth, metrics) {
-        if (!text || maxWidth <= 0) return text
+        if (!text || maxWidth <= 0)
+            return text;
 
-        metrics.text = text
-        if (metrics.width <= maxWidth) return text
+        metrics.text = text;
+        if (metrics.width <= maxWidth)
+            return text;
 
         // Check for pattern: prefix " - " suffix (at least 2 chars in suffix)
-        const dashIdx = text.lastIndexOf(' - ')
+        const dashIdx = text.lastIndexOf(' - ');
         if (dashIdx > 0 && text.length - dashIdx - 3 >= 2) {
-            const prefix = text.substring(0, dashIdx)
-            const suffix = text.substring(dashIdx)  // " - Something"
+            const prefix = text.substring(0, dashIdx);
+            const suffix = text.substring(dashIdx);  // " - Something"
 
-            metrics.text = suffix
-            const suffixWidth = metrics.width
-            metrics.text = '…'
-            const ellipsisWidth = metrics.width
+            metrics.text = suffix;
+            const suffixWidth = metrics.width;
+            metrics.text = '…';
+            const ellipsisWidth = metrics.width;
 
-            const availableForPrefix = maxWidth - suffixWidth - ellipsisWidth
+            const availableForPrefix = maxWidth - suffixWidth - ellipsisWidth;
             if (availableForPrefix > 20) {
-                const shortened = truncateToWidth(prefix, availableForPrefix, metrics)
-                return shortened + '…' + suffix
+                const shortened = truncateToWidth(prefix, availableForPrefix, metrics);
+                return shortened + '…' + suffix;
             }
         }
 
         // No match or insufficient space - shorten whole string
-        metrics.text = '…'
-        const ellipsisWidth = metrics.width
-        return truncateToWidth(text, maxWidth - ellipsisWidth, metrics) + '…'
+        metrics.text = '…';
+        const ellipsisWidth = metrics.width;
+        return truncateToWidth(text, maxWidth - ellipsisWidth, metrics) + '…';
     }
 
     function truncateToWidth(text, maxWidth, metrics) {
-        if (maxWidth <= 0) return ''
+        if (maxWidth <= 0)
+            return '';
 
         // Binary search for optimal truncation point
-        let low = 0, high = text.length
+        let low = 0, high = text.length;
         while (low < high) {
-            const mid = Math.ceil((low + high) / 2)
-            metrics.text = text.substring(0, mid)
-            if (metrics.width <= maxWidth) low = mid
-            else high = mid - 1
+            const mid = Math.ceil((low + high) / 2);
+            metrics.text = text.substring(0, mid);
+            if (metrics.width <= maxWidth)
+                low = mid;
+            else
+                high = mid - 1;
         }
-        return text.substring(0, low)
+        return text.substring(0, low);
     }
 
     MouseArea {
@@ -541,12 +550,13 @@ Item {
                     property bool isFocused: toplevelData ? toplevelData.activated : false
                     property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
                     property string windowTitle: {
-                        const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)"
-                        if (!root.stripAppName) return title
-                        root._desktopEntriesUpdateTrigger
-                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null
-                        const appName = appId ? Paths.getAppName(appId, desktopEntry) : ""
-                        return root.stripAppNameFromTitle(title, appName) || title
+                        const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
+                        if (!root.stripAppName)
+                            return title;
+                        root._desktopEntriesUpdateTrigger;
+                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
+                        const appName = appId ? Paths.getAppName(appId, desktopEntry) : "";
+                        return root.stripAppNameFromTitle(title, appName) || title;
                     }
                     property var toplevelObject: toplevelData
                     property int windowCount: isGrouped ? modelData.windows.length : 1
@@ -572,9 +582,9 @@ Item {
 
                     // Get constrained width from manager (-1 = no constraint)
                     readonly property real maxTextWidth: {
-                        root._widthUpdateTrigger  // reactive dependency
-                        const w = widthManager.constrainedWidths[stableId]
-                        return w !== undefined ? w : -1
+                        root._widthUpdateTrigger;  // reactive dependency
+                        const w = widthManager.constrainedWidths[stableId];
+                        return w !== undefined ? w : -1;
                     }
 
                     // Effective text width for layout
@@ -582,8 +592,9 @@ Item {
 
                     // Display text (shortened if needed)
                     readonly property string displayText: {
-                        if (maxTextWidth < 0 || maxTextWidth >= naturalTextWidth) return windowTitle
-                        return root.shortenTextSmart(windowTitle, maxTextWidth, textMetrics)
+                        if (maxTextWidth < 0 || maxTextWidth >= naturalTextWidth)
+                            return windowTitle;
+                        return root.shortenTextSmart(windowTitle, maxTextWidth, textMetrics);
                     }
 
                     // Register/unregister with manager
@@ -841,12 +852,13 @@ Item {
                     property bool isFocused: toplevelData ? toplevelData.activated : false
                     property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
                     property string windowTitle: {
-                        const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)"
-                        if (!root.stripAppName) return title
-                        root._desktopEntriesUpdateTrigger
-                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null
-                        const appName = appId ? Paths.getAppName(appId, desktopEntry) : ""
-                        return root.stripAppNameFromTitle(title, appName) || title
+                        const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
+                        if (!root.stripAppName)
+                            return title;
+                        root._desktopEntriesUpdateTrigger;
+                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
+                        const appName = appId ? Paths.getAppName(appId, desktopEntry) : "";
+                        return root.stripAppNameFromTitle(title, appName) || title;
                     }
                     property var toplevelObject: toplevelData
                     property int windowCount: isGrouped ? modelData.windows.length : 1

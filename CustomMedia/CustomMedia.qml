@@ -22,8 +22,8 @@ BasePill {
 
     // Read mediaSize from plugin settings (default to 3 = unlimited)
     readonly property int pluginMediaSize: {
-        const saved = PluginService.loadPluginData("CustomMedia", "mediaSize", "3")
-        return parseInt(saved) || 3
+        const saved = PluginService.loadPluginData("CustomMedia", "mediaSize", "3");
+        return parseInt(saved) || 3;
     }
     readonly property bool reverseOrder: PluginService.loadPluginData("CustomMedia", "reverseOrder", false)
     readonly property bool hideIcon: PluginService.loadPluginData("CustomMedia", "hideIcon", false)

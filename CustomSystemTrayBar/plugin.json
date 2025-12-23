@@ -1,11 +1,11 @@
 {
-    "id": "CustomSystemTrayBar",
-    "name": "Custom System Tray Bar",
-    "version": "1.0.0",
-    "description": "System tray with regex-based icon ordering",
-    "author": "srb",
-    "type": "widget",
-    "component": "./CustomSystemTrayBar.qml",
-    "settings": "./CustomSystemTrayBarSettings.qml",
-    "icon": "auto_awesome_mosaic"
+  "id": "CustomSystemTrayBar",
+  "name": "Custom System Tray Bar",
+  "version": "1.0.0",
+  "description": "System tray with regex-based icon ordering",
+  "author": "srb",
+  "type": "widget",
+  "component": "./CustomSystemTrayBar.qml",
+  "settings": "./CustomSystemTrayBarSettings.qml",
+  "icon": "auto_awesome_mosaic"
 }

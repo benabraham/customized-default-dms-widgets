@@ -454,20 +454,49 @@ Item {
     readonly property real visualHeight: isVertical ? (workspaceRow.implicitHeight + padding * 2) : widgetHeight
     readonly property real appIconSize: Theme.barIconSize(barThickness, -6)
 
-    // Configurable icon sizes (loaded from plugin settings)
-    property real wsAppIconNormal: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconNormal", 24)
-    property real wsAppIconActive: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconActive", 36)
-    property real wsNameIconSize: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsNameIconSize", 24)
-    property real wsAppIconGap: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconGap", 1)
+    // Configurable icon sizes (loaded from plugin settings, rounded to steps of 2)
+    function roundToStep2(val) { return Math.round(val / 2) * 2 }
+    property real wsAppIconNormal: roundToStep2(PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconNormal", 24))
+    property real wsAppIconActive: roundToStep2(PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconActive", 36))
+    property real wsNameIconSize: roundToStep2(PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsNameIconSize", 24))
+    property bool debugMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "debugMode", false)
+    property string wsGapPreset: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsGapPreset", "XL")
+    readonly property real wsGap: {
+        switch (wsGapPreset) {
+            case "0": return 0
+            case "XS": return Theme.spacingXS
+            case "S": return Theme.spacingS
+            case "M": return Theme.spacingM
+            case "L": return Theme.spacingL
+            case "XL": return Theme.spacingXL
+            default: return Theme.spacingXL
+        }
+    }
+    readonly property real wsAppIconSizeDiff: wsAppIconActive - wsAppIconNormal
+
+    // Gap: UI value can be negative, clamped to valid range
+    property real wsAppIconGapRaw: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconGap", 0)
+    property real wsAppIconGap: Math.max(-wsAppIconSizeDiff / 2, Math.min(32, wsAppIconGapRaw))
+    // Internal gap for algorithm (offset so 0 UI = sizeDiff/2 internal)
+    readonly property real wsAppIconGapInternal: wsAppIconGap + wsAppIconSizeDiff / 2
 
     Connections {
         target: PluginService
         function onPluginDataChanged(pluginId, key, value) {
-            if (pluginId !== "CustomWorkspaceSwitcher") return
-            if (key === "wsAppIconNormal") root.wsAppIconNormal = value
-            else if (key === "wsAppIconActive") root.wsAppIconActive = value
-            else if (key === "wsNameIconSize") root.wsNameIconSize = value
-            else if (key === "wsAppIconGap") root.wsAppIconGap = value
+            if (pluginId !== "CustomWorkspaceSwitcher")
+                return;
+            if (key === "wsAppIconNormal")
+                root.wsAppIconNormal = roundToStep2(value);
+            else if (key === "wsAppIconActive")
+                root.wsAppIconActive = roundToStep2(value);
+            else if (key === "wsNameIconSize")
+                root.wsNameIconSize = roundToStep2(value);
+            else if (key === "wsAppIconGap")
+                root.wsAppIconGapRaw = value;
+            else if (key === "debugMode")
+                root.debugMode = value;
+            else if (key === "wsGapPreset")
+                root.wsGapPreset = value;
         }
     }
 
@@ -717,7 +746,7 @@ Item {
         id: workspaceRow
 
         anchors.centerIn: parent
-        spacing: Theme.spacingXL
+        spacing: root.wsGap
         flow: isVertical ? Flow.TopToBottom : Flow.LeftToRight
 
         Repeater {
@@ -784,13 +813,12 @@ Item {
                 readonly property real iconsExtraHeight: {
                     if (root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
                         const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
-                        if (numIcons === 2) {
-                            // 2 icons: both could be active, gap anchored at center
-                            return root.wsAppIconActive * 2 + root.wsAppIconGap;
-                        }
-                        // 3+ icons: (n-1) normal + 1 active + (n-1) minimum gaps
-                        const baseIconsHeight = root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive;
-                        return numIcons > 0 ? baseIconsHeight + (numIcons - 1) * root.wsAppIconGap : 0;
+                        // Base: all normal icons + gaps
+                        const baseHeight = numIcons * root.wsAppIconNormal + (numIcons - 1) * root.wsAppIconGapInternal;
+                        // Active icon adds sizeDiff but negative margins absorb min(gap, sizeDiff/2) * 2
+                        // Net change from 1 active: sizeDiff - 2*min(gap, sizeDiff/2)
+                        const activeNetChange = root.wsAppIconSizeDiff - 2 * Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2);
+                        return baseHeight + activeNetChange;
                     }
                     return 0;
                 }
@@ -1129,124 +1157,128 @@ Item {
                                         }
                                     }
 
-                                    ColumnLayout {
-                                        id: colIconsLayout
-                                        width: root.wsAppIconActive
+                                    Item {
+                                        width: colIconsLayout.width
+                                        height: colIconsLayout.height
 
-                                        // Icon counts
-                                        property int numIcons: Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
-                                        property int activeCount: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons).filter(i => i.active).length
-
-                                        // Container height:
-                                        // - 2 icons: sized for both active (gap anchored at center)
-                                        // - 3+ icons: sized for 1 active (space-between)
-                                        property real totalHeight: {
-                                            if (numIcons === 2) {
-                                                // Both icons could be active, gap stays centered
-                                                return root.wsAppIconActive * 2 + root.wsAppIconGap
-                                            }
-                                            // For 3+: (n-1) normal + 1 active + gaps
-                                            const baseIconsHeight = root.wsAppIconNormal * (numIcons - 1) + root.wsAppIconActive
-                                            return numIcons > 0 ? baseIconsHeight + (numIcons - 1) * root.wsAppIconGap : 0
+                                        // DEBUG: visualize ColumnLayout bounds
+                                        Rectangle {
+                                            visible: root.debugMode
+                                            anchors.fill: colIconsLayout
+                                            color: "salmon"
                                         }
 
-                                        // Actual icons height based on current active state
-                                        property real actualIconsHeight: root.wsAppIconNormal * (numIcons - activeCount) + root.wsAppIconActive * activeCount
+                                        ColumnLayout {
+                                            id: colIconsLayout
+                                            width: root.wsAppIconActive
 
-                                        // Available space for gaps (3+ icons only)
-                                        property real availableForGaps: totalHeight - actualIconsHeight
+                                            property int numIcons: Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
 
-                                        // Gap size:
-                                        // - 2 icons: fixed gap
-                                        // - 3+ icons: distributed
-                                        property real gapSize: {
-                                            if (numIcons <= 1) return 0
-                                            if (numIcons === 2) return root.wsAppIconGap
-                                            return availableForGaps / (numIcons - 1)
-                                        }
+                                            // Active icons use negative margins to "eat into" adjacent gaps
+                                            // This creates the visual effect of active icons touching neighbors when gap <= sizeDiff/2
+                                            property real activeMargin: -Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2)
 
-                                        height: totalHeight
-                                        spacing: Math.max(0, gapSize)
+                                            // Total height: base (all normal + gaps) + net change from 1 active icon
+                                            property real baseHeight: numIcons * root.wsAppIconNormal + (numIcons - 1) * root.wsAppIconGapInternal
+                                            property real activeNetChange: root.wsAppIconSizeDiff - 2 * Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2)
+                                            property real totalHeight: baseHeight + activeNetChange
 
-                                        Repeater {
-                                            model: ScriptModel {
-                                                values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
-                                            }
-                                            delegate: Item {
-                                                property real iconHeight: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                            height: totalHeight
+                                            spacing: root.wsAppIconGapInternal
 
-                                                Layout.preferredHeight: iconHeight
-                                                Layout.preferredWidth: root.wsAppIconActive
-                                                // For 2 icons: anchor first's bottom and second's top to the gap
-                                                // First icon grows upward (add top margin when smaller)
-                                                // Second icon grows downward (add bottom margin when smaller)
-                                                Layout.topMargin: (colIconsLayout.numIcons === 2 && index === 0) ? (root.wsAppIconActive - iconHeight) : 0
-                                                Layout.bottomMargin: (colIconsLayout.numIcons === 2 && index === 1) ? (root.wsAppIconActive - iconHeight) : 0
-
-                                                IconImage {
-                                                    id: colAppIcon
-                                                    width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
-                                                    height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
-                                                    anchors.centerIn: parent
-                                                    source: modelData.icon
-                                                    visible: !modelData.isSteamApp && !modelData.isQuickshell
+                                            Repeater {
+                                                model: ScriptModel {
+                                                    values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                                 }
+                                                delegate: Item {
+                                                    // Wrapper matches icon size
+                                                    Layout.preferredHeight: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                    Layout.preferredWidth: root.wsAppIconActive
+                                                    // Active icons use negative margins to overlap into adjacent gaps
+                                                    Layout.topMargin: modelData.active ? colIconsLayout.activeMargin : 0
+                                                    Layout.bottomMargin: modelData.active ? colIconsLayout.activeMargin : 0
 
-                                                IconImage {
-                                                    anchors.fill: parent
-                                                    source: modelData.icon
-                                                    visible: modelData.isQuickshell
-                                                    layer.enabled: true
-                                                    layer.effect: MultiEffect {
-                                                        saturation: 0
-                                                        colorization: 1
-                                                        colorizationColor: isActive ? Theme.primaryContainer : Theme.primary
+                                                    // DEBUG: visualize wrapper bounds
+                                                    Rectangle {
+                                                        visible: root.debugMode
+                                                        anchors.fill: parent
+                                                        color: modelData.active ? "red" : "blue"
                                                     }
-                                                }
 
-                                                DankIcon {
-                                                    anchors.centerIn: parent
-                                                    size: root.wsAppIconNormal
-                                                    name: "sports_esports"
-                                                    color: Theme.widgetTextColor
-                                                    opacity: 1.0
-                                                    visible: modelData.isSteamApp
-                                                }
+                                                    IconImage {
+                                                        id: colAppIcon
+                                                        width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                        height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                        anchors.centerIn: parent
+                                                        source: modelData.icon
+                                                        visible: !modelData.isSteamApp && !modelData.isQuickshell
+                                                    }
 
-                                                MouseArea {
-                                                    id: colAppMouseArea
-                                                    anchors.fill: parent
-                                                    enabled: isActive
-                                                    cursorShape: Qt.PointingHandCursor
-                                                    onClicked: {
-                                                        const winId = modelData.windowId;
-                                                        if (!winId)
-                                                            return;
-                                                        if (CompositorService.isHyprland) {
-                                                            Hyprland.dispatch(`focuswindow address:${winId}`);
-                                                        } else if (CompositorService.isNiri) {
-                                                            NiriService.focusWindow(winId);
+                                                    // DEBUG: visualize icon bounds
+                                                    Rectangle {
+                                                        visible: root.debugMode
+                                                        width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                        height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                        anchors.centerIn: parent
+                                                        color: modelData.active ? "deepskyblue" : "green"
+                                                    }
+
+                                                    IconImage {
+                                                        anchors.fill: parent
+                                                        source: modelData.icon
+                                                        visible: modelData.isQuickshell
+                                                        layer.enabled: true
+                                                        layer.effect: MultiEffect {
+                                                            saturation: 0
+                                                            colorization: 1
+                                                            colorizationColor: isActive ? Theme.primaryContainer : Theme.primary
                                                         }
                                                     }
-                                                }
 
-                                                Rectangle {
-                                                    visible: modelData.count > 1 && !isActive
-                                                    width: root.appIconSize * 0.67
-                                                    height: root.appIconSize * 0.67
-                                                    radius: root.appIconSize * 0.33
-                                                    color: "black"
-                                                    border.color: "white"
-                                                    border.width: 1
-                                                    anchors.right: parent.right
-                                                    anchors.bottom: parent.bottom
-                                                    z: 2
-
-                                                    Text {
+                                                    DankIcon {
                                                         anchors.centerIn: parent
-                                                        text: modelData.count
-                                                        font.pixelSize: root.appIconSize * 0.44
-                                                        color: "white"
+                                                        size: root.wsAppIconNormal
+                                                        name: "sports_esports"
+                                                        color: Theme.widgetTextColor
+                                                        opacity: 1.0
+                                                        visible: modelData.isSteamApp
+                                                    }
+
+                                                    MouseArea {
+                                                        id: colAppMouseArea
+                                                        anchors.fill: parent
+                                                        enabled: isActive
+                                                        cursorShape: Qt.PointingHandCursor
+                                                        onClicked: {
+                                                            const winId = modelData.windowId;
+                                                            if (!winId)
+                                                                return;
+                                                            if (CompositorService.isHyprland) {
+                                                                Hyprland.dispatch(`focuswindow address:${winId}`);
+                                                            } else if (CompositorService.isNiri) {
+                                                                NiriService.focusWindow(winId);
+                                                            }
+                                                        }
+                                                    }
+
+                                                    Rectangle {
+                                                        visible: modelData.count > 1 && !isActive
+                                                        width: root.appIconSize * 0.67
+                                                        height: root.appIconSize * 0.67
+                                                        radius: root.appIconSize * 0.33
+                                                        color: "black"
+                                                        border.color: "white"
+                                                        border.width: 1
+                                                        anchors.right: parent.right
+                                                        anchors.bottom: parent.bottom
+                                                        z: 2
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: modelData.count
+                                                            font.pixelSize: root.appIconSize * 0.44
+                                                            color: "white"
+                                                        }
                                                     }
                                                 }
                                             }

@@ -54,7 +54,7 @@ BasePill {
         target: PluginService
         function onPluginDataChanged(pluginId, key) {
             if (pluginId === "CustomFocusedApp" && key === "stripAppName") {
-                root.stripAppName = PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true)
+                root.stripAppName = PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true);
             }
         }
     }
@@ -77,34 +77,31 @@ BasePill {
 
     // Smart app name stripping: handles versions, instances, and partial names
     function stripAppNameFromTitle(title, appName) {
-        if (!title || !appName) return title
+        if (!title || !appName)
+            return title;
 
-        const escapedName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        const escapedName = appName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
         // Version/instance suffix: [N] and/or X.X.X
-        const suffixPattern = '(?:\\s*\\[\\d+\\])?(?:\\s+v?\\d+(?:\\.\\d+)*(?:-\\w+)?)?'
+        const suffixPattern = '(?:\\s*\\[\\d+\\])?(?:\\s+v?\\d+(?:\\.\\d+)*(?:-\\w+)?)?';
         // Separator: hyphen, en-dash, em-dash
-        const sepPattern = '\\s+[-–—]\\s+'
+        const sepPattern = '\\s+[-–—]\\s+';
         // Brand words before app name (e.g., "Google" before "Chrome")
-        const brandPattern = '(?:[A-Z][a-zA-Z]*\\s+)*'
+        const brandPattern = '(?:[A-Z][a-zA-Z]*\\s+)*';
 
         // Pattern 1: separator + optional brand + appName + suffixes
-        const fullRegex = new RegExp(
-            sepPattern + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
-        )
+        const fullRegex = new RegExp(sepPattern + brandPattern + escapedName + suffixPattern + '\\s*$', 'i');
         if (fullRegex.test(title)) {
-            return title.replace(fullRegex, '').trim()
+            return title.replace(fullRegex, '').trim();
         }
 
         // Pattern 2: no separator, just trailing app name
-        const noSepRegex = new RegExp(
-            '\\s+' + brandPattern + escapedName + suffixPattern + '\\s*$', 'i'
-        )
+        const noSepRegex = new RegExp('\\s+' + brandPattern + escapedName + suffixPattern + '\\s*$', 'i');
         if (noSepRegex.test(title)) {
-            return title.replace(noSepRegex, '').replace(/\s*[-–—]\s*$/, '').trim()
+            return title.replace(noSepRegex, '').replace(/\s*[-–—]\s*$/, '').trim();
         }
 
-        return title
+        return title;
     }
     readonly property bool hasWindowsOnCurrentWorkspace: {
         if (CompositorService.isNiri) {
@@ -231,10 +228,13 @@ BasePill {
 
                 IconImage {
                     id: horizontalAppIcon
-                    width: 28; height: 28
+                    width: 28
+                    height: 28
                     visible: !compactMode && activeWindow && status === Image.Ready
                     source: activeWindow && activeWindow.appId ? Paths.getAppIcon(activeWindow.appId, activeDesktopEntry) : ""
-                    smooth: true; mipmap: true; asynchronous: true
+                    smooth: true
+                    mipmap: true
+                    asynchronous: true
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
@@ -265,10 +265,11 @@ BasePill {
                 StyledText {
                     id: titleText
                     text: {
-                        const title = activeWindow && activeWindow.title ? activeWindow.title : ""
-                        if (!root.stripAppName) return title
-                        const appName = appText.text
-                        return root.stripAppNameFromTitle(title, appName)
+                        const title = activeWindow && activeWindow.title ? activeWindow.title : "";
+                        if (!root.stripAppName)
+                            return title;
+                        const appName = appText.text;
+                        return root.stripAppNameFromTitle(title, appName);
                     }
                     font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
                     color: Theme.widgetTextColor

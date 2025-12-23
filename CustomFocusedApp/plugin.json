@@ -1,12 +1,12 @@
 {
-    "id": "CustomFocusedApp",
-    "name": "Custom Focused App",
-    "version": "1.0.0",
-    "description": "FocusedApp with icon display and unlimited width",
-    "author": "srb",
-    "type": "widget",
-    "component": "./CustomFocusedApp.qml",
-    "settings": "./CustomFocusedAppSettings.qml",
-    "icon": "window",
-    "permissions": ["settings_read", "settings_write"]
+  "id": "CustomFocusedApp",
+  "name": "Custom Focused App",
+  "version": "1.0.0",
+  "description": "FocusedApp with icon display and unlimited width",
+  "author": "srb",
+  "type": "widget",
+  "component": "./CustomFocusedApp.qml",
+  "settings": "./CustomFocusedAppSettings.qml",
+  "icon": "window",
+  "permissions": ["settings_read", "settings_write"]
 }
