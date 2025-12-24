@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import qs.Common
@@ -24,7 +25,13 @@ Item {
     property real barSpacing: 4
     property bool isAutoHideBar: false
     property bool stripAppName: PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
-    property real compressionRatio: Math.max(1, Math.min(100000, parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionRatio", "2"))))
+    // Compression bias: UI value -50 to 50, converted to exponent 0.01 to 100
+    // Formula: exponent = 100^(bias/50)
+    // -50 → 0.01 (favor large), 0 → 1 (equal), 50 → 100 (favor small)
+    property real compressionBias: parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"))
+    property real compressionRatio: Math.pow(100, Math.max(-50, Math.min(50, compressionBias)) / 50)
+    onCompressionBiasChanged: widthManager.recalculate()
+    property bool debugMode: PluginService.loadPluginData("CustomRunningApps", "debugMode", false)
     readonly property real horizontalPadding: (barConfig?.noBackground ?? false) ? 2 : Theme.spacingM
     property Item windowRoot: (Window.window ? Window.window.contentItem : null)
 
@@ -41,7 +48,54 @@ Item {
     property string debugInfo: ""
 
     // Debug: check these values if width issues occur
-    property string debugWidthInfo: debugInfo + " | avail:" + Math.round(availableBarWidth) + " calc:" + Math.round(calculatedSize) + " content:" + Math.round(contentSize)
+    property string debugWidthInfo: {
+        _widthUpdateTrigger;  // force re-evaluate when constraints change
+        const n = visibleStableIds.length;
+        // Calculate full natural width (unconstrained) from width manager
+        const origWidths = widthManager.originalWidths;
+        const conWidths = widthManager.constrainedWidths;
+        let totalTextWidth = 0;
+        let totalEffective = 0;
+        for (const k of Object.keys(origWidths)) {
+            if (visibleStableIds.includes(k)) {
+                const nat = origWidths[k];
+                totalTextWidth += nat;
+                const c = conWidths[k];
+                // Match effectiveTextWidth logic: min(natural, constrained) when constrained >= 0
+                const eff = (c !== undefined && c >= 0) ? Math.min(nat, c) : nat;
+                totalEffective += eff;
+            }
+        }
+        const fullNat = n * pillOverhead + (n - 1) * Theme.spacingS + horizontalPadding * 2 + totalTextWidth;
+        const expectedCalc = n * pillOverhead + (n - 1) * Theme.spacingS + horizontalPadding * 2 + totalEffective;
+        const status = root.forceCompactMode ? "ICON-ONLY " : (root.debugInfo.startsWith("SHRINK") ? "SHRINK " : "");
+        const info = status + "n:" + n + " avail:" + Math.round(availableBarWidth) + " fullNat:" + Math.round(fullNat) + " expectedCalc:" + Math.round(expectedCalc) + " actualCalc:" + Math.round(calculatedSize) + " exp:" + compressionRatio;
+        if (root.debugMode)
+            console.warn("WIDTH DEBUG: " + info);
+        return info;
+    }
+
+    // Hidden reference text to measure minimum pill width
+    TextMetrics {
+        id: minPillMetrics
+        text: "Bash"
+        font.pixelSize: Theme.barTextSize(root.barThickness, barConfig?.fontScale)
+        font.family: Theme.fontFamily
+    }
+    readonly property real minPillWidth: Theme.spacingS + 24 + Theme.spacingS + minPillMetrics.width + Theme.spacingS
+
+    // Auto-compact mode: force icon-only when items can't fit with minimum text
+    readonly property bool forceCompactMode: {
+        if (isVertical)
+            return false;
+        const itemCount = visibleStableIds.length;
+        if (itemCount === 0)
+            return false;
+        // Check if minimum possible size (using reference "Bash" pill) would fit
+        // spacing between pills = (itemCount - 1) gaps
+        const totalMinWidth = itemCount * minPillWidth + (itemCount - 1) * Theme.spacingS + horizontalPadding * 2;
+        return totalMinWidth > availableBarWidth;
+    }
 
     readonly property real effectiveBarThickness: {
         if (barThickness > 0 && barSpacing > 0) {
@@ -119,8 +173,10 @@ Item {
             if (pluginId === "CustomRunningApps") {
                 if (key === "stripAppName") {
                     root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true);
-                } else if (key === "compressionRatio") {
-                    root.compressionRatio = Math.max(1, Math.min(100000, parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionRatio", "2"))));
+                } else if (key === "compressionBias") {
+                    root.compressionBias = parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"));
+                } else if (key === "debugMode") {
+                    root.debugMode = PluginService.loadPluginData("CustomRunningApps", "debugMode", false);
                 }
             }
         }
@@ -180,6 +236,14 @@ Item {
     width: windowCount > 0 ? (isVertical ? barThickness : calculatedSize) : 0
     height: windowCount > 0 ? (isVertical ? calculatedSize : barThickness) : 0
     visible: windowCount > 0
+
+    // Debug: root widget background
+    Rectangle {
+        visible: root.debugMode
+        anchors.fill: parent
+        color: "salmon"
+        z: -1
+    }
 
     Item {
         id: visualBackground
@@ -272,6 +336,16 @@ Item {
         }
 
         function doRecalculate() {
+            if (root.debugMode)
+                console.warn("RECALC: called, exp=" + root.compressionRatio);
+            // Skip calculation when in forced compact mode (icon-only)
+            if (root.forceCompactMode) {
+                constrainedWidths = {};
+                if (root.debugMode)
+                    console.warn("RECALC: skipped - forceCompactMode");
+                return;
+            }
+
             // Only include items that are actually visible (filter by visibleStableIds)
             const validIds = root.visibleStableIds;
             const indices = Object.keys(originalWidths).filter(idx => validIds.includes(idx));
@@ -298,53 +372,111 @@ Item {
                     result[idx] = -1;
                 constrainedWidths = result;
                 root._widthUpdateTrigger++;
-                root.debugInfo = "FITS avail:" + Math.round(root.availableBarWidth) + " total:" + Math.round(totalWidth);
+                root.debugInfo = "FITS";
+                if (root.debugMode)
+                    console.warn("RECALC: FITS - no shrink needed");
                 return;
             }
 
             // Need to shrink - calculate available space for text
             const availableForText = root.availableBarWidth - spacing - padding - (indices.length * root.pillOverhead);
-            root.debugInfo = "SHRINK n:" + indices.length + " forText:" + Math.round(availableForText) + " txtSum:" + Math.round(totalTextWidth) + " validIds:" + validIds.length;
-            constrainedWidths = redistributeNonLinear(originalWidths, availableForText, root.compressionRatio, indices);
+            root.debugInfo = "SHRINK avail4txt:" + Math.round(availableForText);
+            const result = redistributeNonLinear(originalWidths, availableForText, root.compressionRatio, indices);
+            // Set constraints BEFORE incrementing trigger
+            constrainedWidths = result;
             root._widthUpdateTrigger++;
+            Qt.callLater(() => {
+                root._widthUpdateTrigger++;
+            });
         }
 
-        // Shrinkage-based distribution: larger items absorb more shrinkage
+        // Iterative redistribution: short items keep natural, long items e by same ratio
         function redistributeNonLinear(widths, available, exponent, filteredIndices) {
             const indices = filteredIndices || Object.keys(widths);
-
-            let totalOriginal = 0;
-            for (const idx of indices)
-                totalOriginal += widths[idx];
-
-            // If fits, no shrinking
-            if (totalOriginal <= available) {
-                const result = {};
-                for (const idx of indices)
-                    result[idx] = widths[idx];
-                return result;
-            }
-
-            const totalShrinkage = totalOriginal - available;
-
-            // Calculate weights: larger items get higher weight = more shrinkage
-            let totalWeight = 0;
-            const weights = {};
-            for (const idx of indices) {
-                weights[idx] = Math.pow(widths[idx], exponent);
-                totalWeight += weights[idx];
-            }
-
-            // Distribute shrinkage proportionally to weight
             const result = {};
-            let resultSum = 0;
-            for (const idx of indices) {
-                const shrink = (weights[idx] / totalWeight) * totalShrinkage;
-                result[idx] = widths[idx] - shrink;
-                resultSum += result[idx];
+
+            // Start with all items needing distribution
+            let remaining = [...indices];
+            let remainingSpace = available;
+
+            // Iterate: items with natural <= fair share keep natural, redistribute rest
+            let changed = true;
+            while (changed && remaining.length > 0) {
+                changed = false;
+                const fairShare = remainingSpace / remaining.length;
+                const stillNeed = [];
+
+                for (const idx of remaining) {
+                    if (widths[idx] <= fairShare) {
+                        // Small item: keep natural width
+                        result[idx] = widths[idx];
+                        remainingSpace -= widths[idx];
+                        changed = true;
+                    } else {
+                        stillNeed.push(idx);
+                    }
+                }
+                remaining = stillNeed;
             }
 
-            root.debugInfo += " resultSum:" + Math.round(resultSum);
+            // Remaining items share space using allocation-based distribution
+            // exponent=1: proportional (all shrink same ratio)
+            // exponent>1: smaller items get relatively more (larger items compress more)
+            // Uses 1/exponent to guarantee order preservation (larger items always stay larger)
+            if (remaining.length > 0) {
+                let active = [...remaining]
+                let spaceLeft = remainingSpace
+
+                while (active.length > 0) {
+                    let totalAllocWeight = 0
+                    const allocWeights = {}
+
+                    for (const idx of active) {
+                        // Inverted exponent: higher exp = smaller items get relatively more
+                        // but larger items ALWAYS get more absolute space (order preserved)
+                        allocWeights[idx] = Math.pow(widths[idx], 1 / exponent)
+                        totalAllocWeight += allocWeights[idx]
+                    }
+
+                    // Directly allocate space (guarantees order preservation)
+                    let anyHitZero = false
+                    const stillActive = []
+
+                    for (const idx of active) {
+                        const newVal = (allocWeights[idx] / totalAllocWeight) * spaceLeft
+                        if (newVal <= 0) {
+                            result[idx] = 0
+                            anyHitZero = true
+                        } else {
+                            stillActive.push(idx)
+                            if (!anyHitZero) {
+                                result[idx] = newVal
+                            }
+                        }
+                    }
+
+                    if (!anyHitZero)
+                        break
+
+                    active = stillActive
+                }
+            }
+
+            if (root.debugMode) {
+                let resultSum = 0;
+                let shrunkCount = 0;
+                let sampleValues = [];
+                for (const idx of indices) {
+                    resultSum += result[idx];
+                    if (result[idx] < widths[idx]) {
+                        shrunkCount++;
+                        if (sampleValues.length < 3) {
+                            sampleValues.push(Math.round(widths[idx]) + "→" + Math.round(result[idx]));
+                        }
+                    }
+                }
+                console.warn("REDIST: n=" + indices.length + " shrunk=" + shrunkCount + " exp=" + exponent + " samples:" + sampleValues.join(","));
+            }
             return result;
         }
     }
@@ -565,8 +697,8 @@ Item {
                         const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
                         const appName = appId ? Paths.getAppName(appId, desktopEntry) : "Unknown";
 
-                        // DEBUG: show width info
-                        const debugInfo = " [" + root.debugWidthInfo + " nat:" + Math.round(naturalTextWidth) + " eff:" + Math.round(effectiveTextWidth) + " max:" + Math.round(maxTextWidth) + "]";
+                        // DEBUG: show width info (only when debugMode enabled)
+                        const debugInfo = root.debugMode ? " [" + root.debugWidthInfo + " nat:" + Math.round(naturalTextWidth) + " eff:" + Math.round(effectiveTextWidth) + " max:" + Math.round(maxTextWidth) + "]" : "";
 
                         if (isGrouped && windowCount > 1) {
                             return appName + " (" + windowCount + " windows)" + debugInfo;
@@ -590,12 +722,34 @@ Item {
                     // Effective text width for layout
                     readonly property real effectiveTextWidth: maxTextWidth >= 0 ? Math.min(naturalTextWidth, maxTextWidth) : naturalTextWidth
 
-                    // Display text (shortened if needed)
-                    readonly property string displayText: {
-                        if (maxTextWidth < 0 || maxTextWidth >= naturalTextWidth)
-                            return windowTitle;
-                        return root.shortenTextSmart(windowTitle, maxTextWidth, textMetrics);
+                    // Display text (shortened if needed) - use elide instead of smart shorten to avoid binding loop
+                    readonly property string displayText: windowTitle
+
+                    // Smart dash-split for titles like "Document - Firefox"
+                    // Matches: hyphen-minus (-), en-dash (–), em-dash (—), minus sign (−)
+                    readonly property int dashIndex: {
+                        const dashes = [' - ', ' – ', ' — ', ' − '];
+                        let maxIdx = -1;
+                        for (const d of dashes) {
+                            const idx = windowTitle.lastIndexOf(d);
+                            if (idx > maxIdx)
+                                maxIdx = idx;
+                        }
+                        return maxIdx;
                     }
+                    readonly property int dashLength: {
+                        if (dashIndex < 0)
+                            return 0;
+                        const dashes = [' - ', ' – ', ' — ', ' − '];
+                        for (const d of dashes) {
+                            if (windowTitle.indexOf(d, dashIndex) === dashIndex)
+                                return d.length;
+                        }
+                        return 3;
+                    }
+                    readonly property bool hasDashPattern: dashIndex > 0 && windowTitle.length - dashIndex - dashLength >= 2
+                    readonly property string prefixText: hasDashPattern ? windowTitle.substring(0, dashIndex) : windowTitle
+                    readonly property string suffixText: hasDashPattern ? windowTitle.substring(dashIndex) : ""
 
                     // Register/unregister with manager
                     Component.onCompleted: widthManager.register(stableId, naturalTextWidth)
@@ -616,10 +770,68 @@ Item {
                         font: hiddenText.font
                     }
 
-                    readonly property real visualWidth: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? 24 : (Theme.spacingS + 24 + Theme.spacingS + (effectiveTextWidth > 0 ? effectiveTextWidth + Theme.spacingS : 120))
+                    // Suffix width for dash-split calculation
+                    readonly property real suffixWidth: {
+                        if (!hasDashPattern)
+                            return 0;
+                        textMetrics.text = suffixText;
+                        return textMetrics.width;
+                    }
+
+                    // Only split if there's room for prefix (at least 50% of suffix width for prefix)
+                    readonly property bool useDashSplit: hasDashPattern && effectiveTextWidth >= suffixWidth * 1.5
+
+                    readonly property real visualWidth: {
+                        const compact = root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode);
+
+                        // Text width: 0 if compact, otherwise effective (constrained) text width + spacing
+                        const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + Theme.spacingS : 0);
+                        return Theme.spacingS + 24 + Theme.spacingS + textWidth;
+                    }
 
                     width: visualWidth
                     height: root.barThickness
+
+                    // Debug: pill background
+                    Rectangle {
+                        visible: root.debugMode
+                        anchors.fill: parent
+                        color: "navy"
+                        z: -1
+                    }
+                    Rectangle {
+                        visible: root.debugMode && isFocused
+                        anchors.fill: parent
+                        color: "yellow"
+                        z: 0
+                    }
+
+                    // Debug: pill width info
+                    Rectangle {
+                        visible: root.debugMode && !root.forceCompactMode
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        color: "black"
+                        width: pillDebugText.width + 6
+                        height: pillDebugText.height + 2
+                        z: 9999
+
+                        Text {
+                            id: pillDebugText
+                            anchors.centerIn: parent
+                            text: {
+                                const nat = Math.round(naturalTextWidth)
+                                const eff = Math.round(effectiveTextWidth)
+                                if (nat === eff)
+                                    return nat
+                                const pct = Math.round((eff / nat) * 100)
+                                const mode = useDashSplit ? ' SPLIT' : (hasDashPattern ? ' END (NO SPACE FOR SPLIT)' : ' END')
+                                return nat + '→' + eff + ' (' + pct + '%)' + mode
+                            }
+                            font.pixelSize: 9
+                            color: "white"
+                        }
+                    }
 
                     Rectangle {
                         id: visualContent
@@ -718,17 +930,43 @@ Item {
                             }
                         }
 
+                        // Debug: icon overlay
+                        Rectangle {
+                            visible: root.debugMode
+                            anchors.fill: iconImg
+                            color: "deepskyblue"
+                            opacity: 0.5
+                            z: 0
+                        }
+
                         // Window title text (only visible in expanded mode)
-                        StyledText {
-                            id: titleText
+                        Row {
+                            id: titleRow
                             anchors.left: iconImg.right
                             anchors.leftMargin: Theme.spacingXS
                             anchors.verticalCenter: parent.verticalCenter
-                            visible: !(widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode)
-                            text: displayText
-                            font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                            color: Theme.widgetTextColor
-                            maximumLineCount: 1
+                            visible: !(root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode))
+                            clip: true
+                            width: effectiveTextWidth + Theme.spacingS - Theme.spacingXS
+
+                            StyledText {
+                                id: prefixTitleText
+                                text: useDashSplit ? prefixText : windowTitle
+                                width: useDashSplit ? Math.max(0, parent.width - suffixWidth) : parent.width
+                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
+                                color: Theme.widgetTextColor
+                                maximumLineCount: 1
+                                wrapMode: Text.NoWrap
+                                elide: useDashSplit ? Text.ElideRight : Text.ElideMiddle
+                            }
+                            StyledText {
+                                id: suffixTitleText
+                                visible: useDashSplit
+                                text: suffixText
+                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
+                                color: Theme.widgetTextColor
+                                maximumLineCount: 1
+                            }
                         }
                     }
 
@@ -877,6 +1115,20 @@ Item {
                     width: root.barThickness
                     height: 24
 
+                    // Debug: pill background
+                    Rectangle {
+                        visible: root.debugMode
+                        anchors.fill: parent
+                        color: "deepskyblue"
+                        z: -1
+                    }
+                    Rectangle {
+                        visible: root.debugMode && isFocused
+                        anchors.fill: parent
+                        color: "darkgreen"
+                        z: 0
+                    }
+
                     Rectangle {
                         id: visualContent
                         width: root.isVertical ? root.barThickness : delegateItem.visualWidth
@@ -916,6 +1168,14 @@ Item {
                                 colorization: 1
                                 colorizationColor: Theme.primary
                             }
+                        }
+
+                        // Debug: icon overlay
+                        Rectangle {
+                            visible: root.debugMode
+                            anchors.fill: iconImg
+                            color: "crimson"
+                            z: 1
                         }
 
                         DankIcon {
@@ -1077,25 +1337,51 @@ Item {
         }
     }
 
-    // DEBUG: visible width info
-    /*
+    // DEBUG: visible width info (click to copy)
     Rectangle {
-        anchors.centerIn: parent
-        color: "black"
+        id: debugRect
+        visible: root.debugMode
+        anchors.left: parent.left
+        anchors.top: parent.top
+        color: debugMouseArea.containsMouse ? "#333" : "black"
         width: debugText.width + 10
-        height: debugText.height + 6
+        height: debugText.height + 4
         z: 9999
+
+        property bool justCopied: false
 
         Text {
             id: debugText
             anchors.centerIn: parent
-            text: root.debugWidthInfo
-            font.pixelSize: 14
-            font.bold: true
-            color: "yellow"
+            text: debugRect.justCopied ? "Copied!" : root.debugWidthInfo
+            font.pixelSize: 12
+            color: debugRect.justCopied ? "lime" : "white"
+        }
+
+        MouseArea {
+            id: debugMouseArea
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: {
+                debugCopyProc.running = true;
+                debugRect.justCopied = true;
+                debugCopyTimer.restart();
+            }
+        }
+
+        Timer {
+            id: debugCopyTimer
+            interval: 1000
+            onTriggered: debugRect.justCopied = false
+        }
+
+        Process {
+            id: debugCopyProc
+            command: ["wl-copy", root.debugWidthInfo]
         }
     }
-    */
 
     Loader {
         id: tooltipLoader
