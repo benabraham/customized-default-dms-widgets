@@ -4,8 +4,8 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2025-12-18
-**Base commit:** `baf23157` (i18n: sync translations)
+**Last synced:** 2025-12-25
+**Base commit:** `fd839059` (popout: use mapToItem instead of mapToGlobal)
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
 ## CustomFocusedApp
@@ -28,6 +28,8 @@ Changes:
 - Reverse layout order option
 - Hide icon option
 - Mouse wheel volume control (when player supports it)
+  - Mouse wheel: 5% volume increments
+  - Touchpad: smooth 1% increments with accumulator
 - Per-widget or global settings via `PluginService.loadPluginData`
 
 ## CustomNetworkMonitor

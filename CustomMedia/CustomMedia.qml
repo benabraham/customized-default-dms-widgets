@@ -60,19 +60,36 @@ BasePill {
         return audioVizHeight + Theme.spacingXS + playButtonHeight;
     }
 
+    property real scrollAccumulatorY: 0
+    property real touchpadThreshold: 100
+
     onWheel: function (wheelEvent) {
         wheelEvent.accepted = true;
         if (!usePlayerVolume)
             return;
 
-        const delta = wheelEvent.angleDelta.y;
+        const deltaY = wheelEvent.angleDelta.y;
+        const isMouseWheelY = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0;
+
         const currentVolume = activePlayer.volume * 100;
 
-        let newVolume;
-        if (delta > 0) {
-            newVolume = Math.min(100, currentVolume + 5);
+        let newVolume = currentVolume;
+        if (isMouseWheelY) {
+            if (deltaY > 0) {
+                newVolume = Math.min(100, currentVolume + 5);
+            } else if (deltaY < 0) {
+                newVolume = Math.max(0, currentVolume - 5);
+            }
         } else {
-            newVolume = Math.max(0, currentVolume - 5);
+            scrollAccumulatorY += deltaY;
+            if (Math.abs(scrollAccumulatorY) >= touchpadThreshold) {
+                if (scrollAccumulatorY > 0) {
+                    newVolume = Math.min(100, currentVolume + 1);
+                } else {
+                    newVolume = Math.max(0, currentVolume - 1);
+                }
+                scrollAccumulatorY = 0;
+            }
         }
 
         activePlayer.volume = newVolume / 100;
@@ -134,7 +151,7 @@ BasePill {
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
                             if (root.popoutTarget && root.popoutTarget.setTriggerPosition) {
-                                const globalPos = parent.mapToGlobal(0, 0);
+                                const globalPos = parent.mapToItem(null, 0, 0);
                                 const currentScreen = root.parentScreen || Screen;
                                 const pos = SettingsData.getPopupTriggerPosition(globalPos, currentScreen, root.barThickness, parent.width);
                                 root.popoutTarget.setTriggerPosition(pos.x, pos.y, pos.width, root.section, currentScreen);
@@ -292,7 +309,7 @@ BasePill {
                             cursorShape: Qt.PointingHandCursor
                             onPressed: {
                                 if (root.popoutTarget && root.popoutTarget.setTriggerPosition) {
-                                    const globalPos = mapToGlobal(0, 0);
+                                    const globalPos = mapToItem(null, 0, 0);
                                     const currentScreen = root.parentScreen || Screen;
                                     const pos = SettingsData.getPopupTriggerPosition(globalPos, currentScreen, root.barThickness, root.width);
                                     root.popoutTarget.setTriggerPosition(pos.x, pos.y, pos.width, root.section, currentScreen);
