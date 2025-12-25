@@ -8,21 +8,6 @@ PluginSettings {
     id: root
     pluginId: "CustomMedia"
 
-    StyledText {
-        text: "Custom Media Controls"
-        font.pixelSize: Theme.fontSizeLarge
-        font.weight: Font.Bold
-        color: Theme.surfaceText
-    }
-
-    StyledText {
-        text: "Media player widget with unlimited width option. Size 3 = unlimited (shows full track title)."
-        font.pixelSize: Theme.fontSizeSmall
-        color: Theme.surfaceVariantText
-        wrapMode: Text.WordWrap
-        width: parent.width
-    }
-
     SelectionSetting {
         settingKey: "mediaSize"
         label: "Widget Size"
