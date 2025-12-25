@@ -8,6 +8,61 @@ PluginSettings {
     id: root
     pluginId: "CustomRunningApps"
 
+    SteppedSliderSetting {
+        settingKey: "appIconSize"
+        label: "App Icon Size"
+        minimum: 8
+        maximum: 64
+        stepSize: 2
+        defaultValue: 24
+        unit: "px"
+    }
+
+    LabeledSliderSetting {
+        settingKey: "pillSpacing"
+        label: "Pill Spacing"
+        description: "Spacing between app pills"
+        options: [
+            { label: "None", value: "0" },
+            { label: "XS", value: "XS" },
+            { label: "S", value: "S" },
+            { label: "M", value: "M" },
+            { label: "L", value: "L" },
+            { label: "XL", value: "XL" }
+        ]
+        defaultValue: "S"
+    }
+
+    LabeledSliderSetting {
+        settingKey: "widgetPadding"
+        label: "Pill Padding"
+        description: "Left and right padding inside each pill"
+        options: [
+            { label: "None", value: "0" },
+            { label: "XS", value: "XS" },
+            { label: "S", value: "S" },
+            { label: "M", value: "M" },
+            { label: "L", value: "L" },
+            { label: "XL", value: "XL" }
+        ]
+        defaultValue: "S"
+    }
+
+    LabeledSliderSetting {
+        settingKey: "iconTitleSpacing"
+        label: "Icon-Title Spacing"
+        description: "Spacing between icon and title text"
+        options: [
+            { label: "None", value: "0" },
+            { label: "XS", value: "XS" },
+            { label: "S", value: "S" },
+            { label: "M", value: "M" },
+            { label: "L", value: "L" },
+            { label: "XL", value: "XL" }
+        ]
+        defaultValue: "S"
+    }
+
     ToggleSetting {
         settingKey: "stripAppName"
         label: "Strip App Name from Title"

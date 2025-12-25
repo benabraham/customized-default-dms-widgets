@@ -22,6 +22,22 @@ BasePill {
     property bool isHovered: mouseArea.containsMouse
     property bool isAutoHideBar: false
     property bool stripAppName: PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true)
+    property real appIconSize: PluginService.loadPluginData("CustomFocusedApp", "appIconSize", 28)
+    property string iconTitleSpacingPreset: PluginService.loadPluginData("CustomFocusedApp", "iconTitleSpacing", "S")
+
+    function spacerValue(preset) {
+        switch (preset) {
+            case "0": return 0
+            case "XS": return Theme.spacingXS
+            case "S": return Theme.spacingS
+            case "M": return Theme.spacingM
+            case "L": return Theme.spacingL
+            case "XL": return Theme.spacingXL
+            default: return Theme.spacingS
+        }
+    }
+
+    readonly property real iconTitleSpacing: spacerValue(iconTitleSpacingPreset)
 
     readonly property real minTooltipY: {
         if (!parentScreen || !isVerticalOrientation) {
@@ -53,8 +69,14 @@ BasePill {
     Connections {
         target: PluginService
         function onPluginDataChanged(pluginId, key) {
-            if (pluginId === "CustomFocusedApp" && key === "stripAppName") {
-                root.stripAppName = PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true);
+            if (pluginId === "CustomFocusedApp") {
+                if (key === "stripAppName") {
+                    root.stripAppName = PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true);
+                } else if (key === "appIconSize") {
+                    root.appIconSize = PluginService.loadPluginData("CustomFocusedApp", "appIconSize", 28);
+                } else if (key === "iconTitleSpacing") {
+                    root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomFocusedApp", "iconTitleSpacing", "S");
+                }
             }
         }
     }
@@ -166,8 +188,8 @@ BasePill {
             IconImage {
                 id: appIcon
                 anchors.centerIn: parent
-                width: 18
-                height: 18
+                width: root.appIconSize
+                height: root.appIconSize
                 visible: root.isVerticalOrientation && activeWindow && status === Image.Ready
                 source: {
                     if (!activeWindow || !activeWindow.appId)
@@ -189,7 +211,7 @@ BasePill {
 
             DankIcon {
                 anchors.centerIn: parent
-                size: 18
+                size: root.appIconSize
                 name: "sports_esports"
                 color: Theme.widgetTextColor
                 visible: {
@@ -203,8 +225,8 @@ BasePill {
             // Fallback icon if no icon found
             Rectangle {
                 anchors.centerIn: parent
-                width: 18
-                height: 18
+                width: root.appIconSize
+                height: root.appIconSize
                 radius: 4
                 color: Theme.secondary
                 visible: {
@@ -233,13 +255,13 @@ BasePill {
             Row {
                 id: contentRow
                 anchors.centerIn: parent
-                spacing: Theme.spacingS
+                spacing: root.iconTitleSpacing
                 visible: !root.isVerticalOrientation
 
                 IconImage {
                     id: horizontalAppIcon
-                    width: 28
-                    height: 28
+                    width: root.appIconSize
+                    height: root.appIconSize
                     visible: !compactMode && activeWindow && status === Image.Ready
                     source: activeWindow && activeWindow.appId ? Paths.getAppIcon(activeWindow.appId, activeDesktopEntry) : ""
                     smooth: true
@@ -250,8 +272,8 @@ BasePill {
 
                 // Fallback icon for horizontal mode
                 Rectangle {
-                    width: 28
-                    height: 28
+                    width: root.appIconSize
+                    height: root.appIconSize
                     radius: 4
                     color: Theme.secondary
                     anchors.verticalCenter: parent.verticalCenter

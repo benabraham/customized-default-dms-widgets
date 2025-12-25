@@ -22,9 +22,26 @@ Item {
     property bool isAtBottom: false
     property var barConfig: null
     property bool isAutoHideBar: false
-    readonly property real iconSize: Math.round(Theme.barIconSize(barThickness) * (1 + 1 / 3))
+
+    // Configurable sizes and spacing
+    property real configuredIconSize: PluginService.loadPluginData("SortedSystemTray", "iconSize", 24)
+    property string iconSpacingPreset: PluginService.loadPluginData("SortedSystemTray", "iconSpacing", "M")
+
+    function spacerValue(preset) {
+        switch (preset) {
+            case "0": return 0
+            case "XS": return Theme.spacingXS
+            case "S": return Theme.spacingS
+            case "M": return Theme.spacingM
+            case "L": return Theme.spacingL
+            case "XL": return Theme.spacingXL
+            default: return Theme.spacingM
+        }
+    }
+
+    readonly property real iconSize: configuredIconSize
     readonly property real iconContainerSize: iconSize
-    readonly property real iconSpacing: Theme.spacingM
+    readonly property real iconSpacing: spacerValue(iconSpacingPreset)
     readonly property real horizontalPadding: (barConfig?.noBackground ?? false) ? 2 : Theme.spacingS
     readonly property var hiddenTrayIds: {
         const envValue = Quickshell.env("DMS_HIDE_TRAYIDS") || "";
@@ -50,9 +67,15 @@ Item {
     // Listen for settings changes
     Connections {
         target: PluginService
-        function onPluginDataChanged(pluginId) {
+        function onPluginDataChanged(pluginId, key) {
             if (pluginId === "SortedSystemTray") {
-                root.trayIconOrder = PluginService.loadPluginData("SortedSystemTray", "trayIconOrder", []);
+                if (key === "trayIconOrder") {
+                    root.trayIconOrder = PluginService.loadPluginData("SortedSystemTray", "trayIconOrder", []);
+                } else if (key === "iconSize") {
+                    root.configuredIconSize = PluginService.loadPluginData("SortedSystemTray", "iconSize", 24);
+                } else if (key === "iconSpacing") {
+                    root.iconSpacingPreset = PluginService.loadPluginData("SortedSystemTray", "iconSpacing", "M");
+                }
             }
         }
     }

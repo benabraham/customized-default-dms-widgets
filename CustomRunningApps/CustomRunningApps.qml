@@ -32,6 +32,28 @@ Item {
     property real compressionRatio: Math.pow(100, Math.max(-50, Math.min(50, compressionBias)) / 50)
     onCompressionBiasChanged: widthManager.recalculate()
     property bool debugMode: PluginService.loadPluginData("CustomRunningApps", "debugMode", false)
+
+    // Configurable sizes and spacing
+    property real appIconSize: PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24)
+    property string pillSpacingPreset: PluginService.loadPluginData("CustomRunningApps", "pillSpacing", "S")
+    property string widgetPaddingPreset: PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M")
+    property string iconTitleSpacingPreset: PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S")
+
+    function spacerValue(preset) {
+        switch (preset) {
+            case "0": return 0
+            case "XS": return Theme.spacingXS
+            case "S": return Theme.spacingS
+            case "M": return Theme.spacingM
+            case "L": return Theme.spacingL
+            case "XL": return Theme.spacingXL
+            default: return Theme.spacingS
+        }
+    }
+
+    readonly property real pillSpacing: spacerValue(pillSpacingPreset)
+    readonly property real iconTitleSpacing: spacerValue(iconTitleSpacingPreset)
+    readonly property real pillPadding: spacerValue(widgetPaddingPreset)
     readonly property real horizontalPadding: (barConfig?.noBackground ?? false) ? 2 : Theme.spacingM
     property Item windowRoot: (Window.window ? Window.window.contentItem : null)
 
@@ -39,7 +61,7 @@ Item {
     readonly property real availableBarWidth: isVertical ? 0 : (barBounds.width > 0 ? barBounds.width : (parentScreen?.width ?? 1920))
 
     // Fixed overhead per pill: left padding + icon + right padding + text spacing
-    readonly property real pillOverhead: Theme.spacingS + 24 + Theme.spacingS + Theme.spacingS
+    readonly property real pillOverhead: pillPadding + appIconSize + pillPadding + iconTitleSpacing
 
     // Update trigger for width recalculation
     property int _widthUpdateTrigger: 0
@@ -66,8 +88,8 @@ Item {
                 totalEffective += eff;
             }
         }
-        const fullNat = n * pillOverhead + (n - 1) * Theme.spacingS + horizontalPadding * 2 + totalTextWidth;
-        const expectedCalc = n * pillOverhead + (n - 1) * Theme.spacingS + horizontalPadding * 2 + totalEffective;
+        const fullNat = n * pillOverhead + (n - 1) * pillSpacing + horizontalPadding * 2 + totalTextWidth;
+        const expectedCalc = n * pillOverhead + (n - 1) * pillSpacing + horizontalPadding * 2 + totalEffective;
         const status = root.forceCompactMode ? "ICON-ONLY " : (root.debugInfo.startsWith("SHRINK") ? "SHRINK " : "");
         const info = status + "n:" + n + " avail:" + Math.round(availableBarWidth) + " fullNat:" + Math.round(fullNat) + " expectedCalc:" + Math.round(expectedCalc) + " actualCalc:" + Math.round(calculatedSize) + " exp:" + compressionRatio;
         if (root.debugMode)
@@ -82,7 +104,7 @@ Item {
         font.pixelSize: Theme.barTextSize(root.barThickness, barConfig?.fontScale)
         font.family: Theme.fontFamily
     }
-    readonly property real minPillWidth: Theme.spacingS + 24 + Theme.spacingS + minPillMetrics.width + Theme.spacingS
+    readonly property real minPillWidth: pillPadding + appIconSize + pillPadding + minPillMetrics.width + iconTitleSpacing
 
     // Auto-compact mode: force icon-only when items can't fit with minimum text
     readonly property bool forceCompactMode: {
@@ -93,7 +115,7 @@ Item {
             return false;
         // Check if minimum possible size (using reference "Bash" pill) would fit
         // spacing between pills = (itemCount - 1) gaps
-        const totalMinWidth = itemCount * minPillWidth + (itemCount - 1) * Theme.spacingS + horizontalPadding * 2;
+        const totalMinWidth = itemCount * minPillWidth + (itemCount - 1) * pillSpacing + horizontalPadding * 2;
         return totalMinWidth > availableBarWidth;
     }
 
@@ -177,6 +199,14 @@ Item {
                     root.compressionBias = parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"));
                 } else if (key === "debugMode") {
                     root.debugMode = PluginService.loadPluginData("CustomRunningApps", "debugMode", false);
+                } else if (key === "appIconSize") {
+                    root.appIconSize = PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24);
+                } else if (key === "pillSpacing") {
+                    root.pillSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "pillSpacing", "S");
+                } else if (key === "widgetPadding") {
+                    root.widgetPaddingPreset = PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M");
+                } else if (key === "iconTitleSpacing") {
+                    root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S");
                 }
             }
         }
@@ -355,7 +385,7 @@ Item {
             }
 
             // Calculate total natural width
-            const spacing = (indices.length - 1) * Theme.spacingS;
+            const spacing = (indices.length - 1) * root.pillSpacing;
             const padding = root.horizontalPadding * 2;
             let totalWidth = spacing + padding;
             let totalTextWidth = 0;
@@ -664,7 +694,7 @@ Item {
     Component {
         id: rowLayout
         Row {
-            spacing: Theme.spacingS
+            spacing: root.pillSpacing
 
             Repeater {
                 id: windowRepeater
@@ -785,8 +815,8 @@ Item {
                         const compact = root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode);
 
                         // Text width: 0 if compact, otherwise effective (constrained) text width + spacing
-                        const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + Theme.spacingS : 0);
-                        return Theme.spacingS + 24 + Theme.spacingS + textWidth;
+                        const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + root.pillPadding : 0);
+                        return root.pillPadding + root.appIconSize + root.iconTitleSpacing + textWidth;
                     }
 
                     width: visualWidth
@@ -851,10 +881,10 @@ Item {
                         IconImage {
                             id: iconImg
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 24
-                            height: 24
+                            width: root.appIconSize
+                            height: root.appIconSize
                             source: {
                                 root._desktopEntriesUpdateTrigger;
                                 if (!appId)
@@ -878,9 +908,9 @@ Item {
 
                         DankIcon {
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                             anchors.verticalCenter: parent.verticalCenter
-                            size: 24
+                            size: root.appIconSize
                             name: "sports_esports"
                             color: Theme.widgetTextColor
                             visible: {
@@ -892,10 +922,10 @@ Item {
                         // Fallback icon if no icon found
                         Rectangle {
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 24
-                            height: 24
+                            width: root.appIconSize
+                            height: root.appIconSize
                             radius: 4
                             color: Theme.secondary
                             visible: {
@@ -954,11 +984,11 @@ Item {
                         Row {
                             id: titleRow
                             anchors.left: iconImg.right
-                            anchors.leftMargin: Theme.spacingXS
+                            anchors.leftMargin: root.iconTitleSpacing
                             anchors.verticalCenter: parent.verticalCenter
                             visible: !(root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode))
                             clip: true
-                            width: effectiveTextWidth + Theme.spacingS - Theme.spacingXS
+                            width: effectiveTextWidth + root.pillPadding - Theme.spacingXS
 
                             StyledText {
                                 id: prefixTitleText
@@ -1083,7 +1113,7 @@ Item {
     Component {
         id: columnLayout
         Column {
-            spacing: Theme.spacingS
+            spacing: root.pillSpacing
 
             Repeater {
                 id: windowRepeater
@@ -1121,10 +1151,10 @@ Item {
                         }
                         return appName + (windowTitle ? " • " + windowTitle : "");
                     }
-                    readonly property real visualWidth: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? 24 : (Theme.spacingS + 24 + Theme.spacingS + (titleText.implicitWidth > 0 ? titleText.implicitWidth + Theme.spacingS : 120))
+                    readonly property real visualWidth: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? root.appIconSize : (root.pillPadding + root.appIconSize + root.iconTitleSpacing + (titleText.implicitWidth > 0 ? titleText.implicitWidth + root.pillPadding : 120))
 
                     width: root.barThickness
-                    height: 24
+                    height: root.appIconSize
 
                     // Debug: pill background
                     Rectangle {
@@ -1158,8 +1188,8 @@ Item {
                             id: iconImg
                             anchors.horizontalCenter: parent.horizontalCenter
                             anchors.verticalCenter: parent.verticalCenter
-                            width: 24
-                            height: 24
+                            width: root.appIconSize
+                            height: root.appIconSize
                             source: {
                                 root._desktopEntriesUpdateTrigger;
                                 if (!appId)
@@ -1191,9 +1221,9 @@ Item {
 
                         DankIcon {
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                             anchors.verticalCenter: parent.verticalCenter
-                            size: 24
+                            size: root.appIconSize
                             name: "sports_esports"
                             color: Theme.widgetTextColor
                             visible: {

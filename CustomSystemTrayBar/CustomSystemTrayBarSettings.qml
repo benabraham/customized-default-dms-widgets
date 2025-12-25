@@ -13,6 +13,14 @@ FocusScope {
     implicitHeight: settingsColumn.implicitHeight
     height: implicitHeight
 
+    // Helper functions for slider components
+    function saveValue(key, value) {
+        saveSettings(key, value)
+    }
+    function loadValue(key, defaultValue) {
+        return loadSettings(key, defaultValue)
+    }
+
     // Load rules from storage, sorted by order
     property var orderRules: {
         const rules = loadSettings("trayIconOrder", []);
@@ -31,6 +39,44 @@ FocusScope {
         id: settingsColumn
         width: parent.width
         spacing: Theme.spacingM
+
+        StyledText {
+            text: "System Tray Settings"
+            font.pixelSize: Theme.fontSizeLarge
+            font.weight: Font.Bold
+            color: Theme.surfaceText
+        }
+
+        SteppedSliderSetting {
+            settingKey: "iconSize"
+            label: "Icon Size"
+            minimum: 8
+            maximum: 64
+            stepSize: 2
+            defaultValue: 24
+            unit: "px"
+        }
+
+        LabeledSliderSetting {
+            settingKey: "iconSpacing"
+            label: "Icon Spacing"
+            description: "Spacing between tray icons"
+            options: [
+                { label: "None", value: "0" },
+                { label: "XS", value: "XS" },
+                { label: "S", value: "S" },
+                { label: "M", value: "M" },
+                { label: "L", value: "L" },
+                { label: "XL", value: "XL" }
+            ]
+            defaultValue: "M"
+        }
+
+        Rectangle {
+            width: parent.width
+            height: 1
+            color: Theme.outlineMedium
+        }
 
         StyledText {
             text: "Sorted System Tray"
