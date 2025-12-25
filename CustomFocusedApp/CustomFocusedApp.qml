@@ -200,8 +200,13 @@ BasePill {
                 }
             }
 
-            Text {
+            // Fallback icon if no icon found
+            Rectangle {
                 anchors.centerIn: parent
+                width: 18
+                height: 18
+                radius: 4
+                color: Theme.secondary
                 visible: {
                     if (!root.isVerticalOrientation || !activeWindow || !activeWindow.appId)
                         return false;
@@ -210,14 +215,19 @@ BasePill {
                     const moddedId = Paths.moddedAppId(activeWindow.appId);
                     return !moddedId.toLowerCase().includes("steam_app");
                 }
-                text: {
-                    if (!activeWindow || !activeWindow.appId)
-                        return "?";
-                    const appName = Paths.getAppName(activeWindow.appId, activeDesktopEntry);
-                    return appName.charAt(0).toUpperCase();
+
+                Text {
+                    anchors.centerIn: parent
+                    text: {
+                        if (!activeWindow || !activeWindow.appId)
+                            return "?";
+                        const appName = Paths.getAppName(activeWindow.appId, activeDesktopEntry);
+                        return appName.charAt(0).toUpperCase();
+                    }
+                    font.pixelSize: 10
+                    font.weight: Font.Bold
+                    color: Theme.onSecondary
                 }
-                font.pixelSize: 10
-                color: Theme.widgetTextColor
             }
 
             Row {
@@ -236,6 +246,36 @@ BasePill {
                     mipmap: true
                     asynchronous: true
                     anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // Fallback icon for horizontal mode
+                Rectangle {
+                    width: 28
+                    height: 28
+                    radius: 4
+                    color: Theme.secondary
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: {
+                        if (compactMode || !activeWindow || !activeWindow.appId)
+                            return false;
+                        if (horizontalAppIcon.status === Image.Ready)
+                            return false;
+                        const moddedId = Paths.moddedAppId(activeWindow.appId);
+                        return !moddedId.toLowerCase().includes("steam_app");
+                    }
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: {
+                            if (!activeWindow || !activeWindow.appId)
+                                return "?";
+                            const appName = Paths.getAppName(activeWindow.appId, activeDesktopEntry);
+                            return appName.charAt(0).toUpperCase();
+                        }
+                        font.pixelSize: 14
+                        font.weight: Font.Bold
+                        color: Theme.onSecondary
+                    }
                 }
 
                 StyledText {

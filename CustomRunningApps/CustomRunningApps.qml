@@ -889,25 +889,36 @@ Item {
                             }
                         }
 
-                        // Fallback text if no icon found
-                        Text {
-                            anchors.centerIn: parent
+                        // Fallback icon if no icon found
+                        Rectangle {
+                            anchors.left: parent.left
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - 24) / 2) : Theme.spacingS
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: 24
+                            height: 24
+                            radius: 4
+                            color: Theme.secondary
                             visible: {
                                 const moddedId = Paths.moddedAppId(appId);
                                 const isSteamApp = moddedId.toLowerCase().includes("steam_app");
                                 return !iconImg.visible && !isSteamApp;
                             }
-                            text: {
-                                root._desktopEntriesUpdateTrigger;
-                                if (!appId)
-                                    return "?";
 
-                                const desktopEntry = DesktopEntries.heuristicLookup(appId);
-                                const appName = Paths.getAppName(appId, desktopEntry);
-                                return appName.charAt(0).toUpperCase();
+                            Text {
+                                anchors.centerIn: parent
+                                text: {
+                                    root._desktopEntriesUpdateTrigger;
+                                    if (!appId)
+                                        return "?";
+
+                                    const desktopEntry = DesktopEntries.heuristicLookup(appId);
+                                    const appName = Paths.getAppName(appId, desktopEntry);
+                                    return appName.charAt(0).toUpperCase();
+                                }
+                                font.pixelSize: 12
+                                font.weight: Font.Bold
+                                color: Theme.onSecondary
                             }
-                            font.pixelSize: 10
-                            color: Theme.widgetTextColor
                         }
 
                         Rectangle {

@@ -1078,6 +1078,29 @@ Item {
                                                 visible: modelData.isSteamApp
                                             }
 
+                                            // Fallback icon if no icon found
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                radius: 4
+                                                color: Theme.secondary
+                                                visible: !modelData.isSteamApp && !modelData.isQuickshell && rowAppIcon.status !== Image.Ready
+
+                                                Text {
+                                                    anchors.centerIn: parent
+                                                    text: {
+                                                        const fallback = modelData.fallbackText || "";
+                                                        if (!fallback) return "?";
+                                                        const name = Paths.getAppName(fallback, null);
+                                                        return name.charAt(0).toUpperCase();
+                                                    }
+                                                    font.pixelSize: modelData.active ? 14 : 10
+                                                    font.weight: Font.Bold
+                                                    color: Theme.onSecondary
+                                                }
+                                            }
+
                                             MouseArea {
                                                 id: rowAppMouseArea
                                                 anchors.fill: parent
@@ -1242,6 +1265,29 @@ Item {
                                                         color: Theme.widgetTextColor
                                                         opacity: 1.0
                                                         visible: modelData.isSteamApp
+                                                    }
+
+                                                    // Fallback icon if no icon found
+                                                    Rectangle {
+                                                        anchors.centerIn: parent
+                                                        width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                        height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                                        radius: 4
+                                                        color: Theme.secondary
+                                                        visible: !modelData.isSteamApp && !modelData.isQuickshell && colAppIcon.status !== Image.Ready
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            text: {
+                                                                const fallback = modelData.fallbackText || "";
+                                                                if (!fallback) return "?";
+                                                                const name = Paths.getAppName(fallback, null);
+                                                                return name.charAt(0).toUpperCase();
+                                                            }
+                                                            font.pixelSize: modelData.active ? 14 : 10
+                                                            font.weight: Font.Bold
+                                                            color: Theme.onSecondary
+                                                        }
                                                     }
 
                                                     MouseArea {
