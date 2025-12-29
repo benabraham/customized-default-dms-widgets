@@ -4,8 +4,8 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2025-12-25
-**Base commit:** `fd839059` (popout: use mapToItem instead of mapToGlobal)
+**Last synced:** 2025-12-29
+**Base commit:** `f08e2ef5` (bar: change widget base hover blend logic)
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
 ## CustomFocusedApp
