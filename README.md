@@ -4,8 +4,8 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2025-12-29
-**Base commit:** `f08e2ef5` (bar: change widget base hover blend logic)
+**Last synced:** 2026-01-20
+**Base commit:** `f2be6cfeb` (workspaces: fix occupied color override)
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
 ## CustomFocusedApp

@@ -64,38 +64,63 @@ BasePill {
     property real touchpadThreshold: 100
 
     onWheel: function (wheelEvent) {
-        if (!usePlayerVolume)
-            return;
-        if (!SettingsData.audioScrollEnabled)
-            return;
+        // Support new audioScrollMode API with fallback to old audioScrollEnabled
+        const scrollMode = typeof SettingsData.audioScrollMode !== "undefined" ? SettingsData.audioScrollMode : (SettingsData.audioScrollEnabled ? "volume" : "nothing")
+        if (scrollMode === "nothing")
+            return
 
-        wheelEvent.accepted = true;
+        wheelEvent.accepted = true
 
-        const deltaY = wheelEvent.angleDelta.y;
-        const isMouseWheelY = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0;
+        const deltaY = wheelEvent.angleDelta.y
+        const isMouseWheelY = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0
 
-        const currentVolume = activePlayer.volume * 100;
-
-        let newVolume = currentVolume;
-        if (isMouseWheelY) {
-            if (deltaY > 0) {
-                newVolume = Math.min(100, currentVolume + 5);
-            } else if (deltaY < 0) {
-                newVolume = Math.max(0, currentVolume - 5);
+        if (scrollMode === "song") {
+            // Song mode: skip tracks with scroll
+            if (isMouseWheelY) {
+                if (deltaY > 0 && activePlayer.canGoPrevious) {
+                    activePlayer.previous()
+                } else if (deltaY < 0 && activePlayer.canGoNext) {
+                    activePlayer.next()
+                }
+            } else {
+                scrollAccumulatorY += deltaY
+                if (Math.abs(scrollAccumulatorY) >= touchpadThreshold) {
+                    if (scrollAccumulatorY > 0 && activePlayer.canGoPrevious) {
+                        activePlayer.previous()
+                    } else if (scrollAccumulatorY < 0 && activePlayer.canGoNext) {
+                        activePlayer.next()
+                    }
+                    scrollAccumulatorY = 0
+                }
             }
         } else {
-            scrollAccumulatorY += deltaY;
-            if (Math.abs(scrollAccumulatorY) >= touchpadThreshold) {
-                if (scrollAccumulatorY > 0) {
-                    newVolume = Math.min(100, currentVolume + 1);
-                } else {
-                    newVolume = Math.max(0, currentVolume - 1);
-                }
-                scrollAccumulatorY = 0;
-            }
-        }
+            // Volume mode (default): adjust player volume
+            if (!usePlayerVolume)
+                return
 
-        activePlayer.volume = newVolume / 100;
+            const currentVolume = activePlayer.volume * 100
+
+            let newVolume = currentVolume
+            if (isMouseWheelY) {
+                if (deltaY > 0) {
+                    newVolume = Math.min(100, currentVolume + 5)
+                } else if (deltaY < 0) {
+                    newVolume = Math.max(0, currentVolume - 5)
+                }
+            } else {
+                scrollAccumulatorY += deltaY
+                if (Math.abs(scrollAccumulatorY) >= touchpadThreshold) {
+                    if (scrollAccumulatorY > 0) {
+                        newVolume = Math.min(100, currentVolume + 1)
+                    } else {
+                        newVolume = Math.max(0, currentVolume - 1)
+                    }
+                    scrollAccumulatorY = 0
+                }
+            }
+
+            activePlayer.volume = newVolume / 100
+        }
     }
 
     content: Component {

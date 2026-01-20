@@ -67,6 +67,13 @@ BasePill {
     }
 
     Connections {
+        target: SettingsData
+        function onAppIdSubstitutionsChanged() {
+            root.updateDesktopEntry();
+        }
+    }
+
+    Connections {
         target: PluginService
         function onPluginDataChanged(pluginId, key) {
             if (pluginId === "CustomFocusedApp") {

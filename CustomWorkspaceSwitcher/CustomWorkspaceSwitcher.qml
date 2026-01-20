@@ -35,6 +35,13 @@ Item {
         }
     }
 
+    Connections {
+        target: SettingsData
+        function onAppIdSubstitutionsChanged() {
+            _desktopEntriesUpdateTrigger++;
+        }
+    }
+
     property var currentWorkspace: {
         if (useExtWorkspace)
             return getExtWorkspaceActiveWorkspace();
@@ -249,8 +256,9 @@ Item {
                 const moddedId = Paths.moddedAppId(keyBase);
                 const isSteamApp = moddedId.toLowerCase().includes("steam_app");
                 const isQuickshell = keyBase === "org.quickshell";
-                const desktopEntry = DesktopEntries.heuristicLookup(keyBase);
-                const icon = isSteamApp ? "" : Paths.getAppIcon(keyBase, desktopEntry);
+                const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
+                // Try to get steam icon first, fall back to regular icon lookup
+                const icon = Paths.getAppIcon(moddedId, desktopEntry);
                 byApp[key] = {
                     "type": "icon",
                     "icon": icon,
@@ -697,8 +705,10 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.RightButton
 
-        property real scrollAccumulator: 0
+        property real touchpadAccumulator: 0
+        property real mouseAccumulator: 0
         property real touchpadThreshold: 500
+        property real mouseThreshold: 120
         property bool scrollInProgress: false
 
         Timer {
@@ -724,20 +734,26 @@ Item {
             const delta = wheel.angleDelta.y;
             const isMouseWheel = Math.abs(delta) >= 120 && (Math.abs(delta) % 120) === 0;
             const reverse = SettingsData.reverseScrolling ? -1 : 1;
-            const direction = delta * reverse < 0 ? 1 : -1;
 
             if (isMouseWheel) {
-                root.switchWorkspace(direction);
-                scrollInProgress = true;
-                scrollCooldown.restart();
+                // Standard mouse wheel - use mouse accumulator for high-DPI support
+                mouseAccumulator += delta;
+                if (Math.abs(mouseAccumulator) >= mouseThreshold) {
+                    const direction = mouseAccumulator * reverse < 0 ? 1 : -1;
+                    root.switchWorkspace(direction);
+                    scrollInProgress = true;
+                    scrollCooldown.restart();
+                    mouseAccumulator = 0;
+                }
             } else {
-                scrollAccumulator += delta;
-                if (Math.abs(scrollAccumulator) >= touchpadThreshold) {
-                    const touchDirection = scrollAccumulator < 0 ? 1 : -1;
+                // Touchpad - use touchpad accumulator
+                touchpadAccumulator += delta;
+                if (Math.abs(touchpadAccumulator) >= touchpadThreshold) {
+                    const touchDirection = touchpadAccumulator * reverse < 0 ? 1 : -1;
                     root.switchWorkspace(touchDirection);
                     scrollInProgress = true;
                     scrollCooldown.restart();
-                    scrollAccumulator = 0;
+                    touchpadAccumulator = 0;
                 }
             }
         }
@@ -1054,7 +1070,7 @@ Item {
                                                 anchors.centerIn: parent
                                                 source: modelData.icon
                                                 opacity: 1.0
-                                                visible: !modelData.isSteamApp && !modelData.isQuickshell
+                                                visible: !modelData.isQuickshell && (!modelData.isSteamApp || modelData.icon)
                                             }
 
                                             IconImage {
@@ -1076,7 +1092,7 @@ Item {
                                                 name: "sports_esports"
                                                 color: Theme.widgetTextColor
                                                 opacity: 1.0
-                                                visible: modelData.isSteamApp
+                                                visible: modelData.isSteamApp && !modelData.icon
                                             }
 
                                             // Fallback icon if no icon found
@@ -1235,7 +1251,7 @@ Item {
                                                         height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
                                                         anchors.centerIn: parent
                                                         source: modelData.icon
-                                                        visible: !modelData.isSteamApp && !modelData.isQuickshell
+                                                        visible: !modelData.isQuickshell && (!modelData.isSteamApp || modelData.icon)
                                                     }
 
                                                     // DEBUG: visualize icon bounds
@@ -1265,7 +1281,7 @@ Item {
                                                         name: "sports_esports"
                                                         color: Theme.widgetTextColor
                                                         opacity: 1.0
-                                                        visible: modelData.isSteamApp
+                                                        visible: modelData.isSteamApp && !modelData.icon
                                                     }
 
                                                     // Fallback icon if no icon found

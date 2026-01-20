@@ -161,6 +161,7 @@ Item {
     }
 
     property int _desktopEntriesUpdateTrigger: 0
+    property int _appIdSubstitutionsTrigger: 0
     property int _toplevelsUpdateTrigger: 0
 
     readonly property var sortedToplevels: {
@@ -186,6 +187,13 @@ Item {
         target: DesktopEntries
         function onApplicationsChanged() {
             _desktopEntriesUpdateTrigger++;
+        }
+    }
+
+    Connections {
+        target: SettingsData
+        function onAppIdSubstitutionsChanged() {
+            _appIdSubstitutionsTrigger++;
         }
     }
 
@@ -887,10 +895,12 @@ Item {
                             height: root.appIconSize
                             source: {
                                 root._desktopEntriesUpdateTrigger;
+                                root._appIdSubstitutionsTrigger;
                                 if (!appId)
                                     return "";
-                                const desktopEntry = DesktopEntries.heuristicLookup(appId);
-                                return Paths.getAppIcon(appId, desktopEntry);
+                                const moddedId = Paths.moddedAppId(appId);
+                                const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
+                                return Paths.getAppIcon(moddedId, desktopEntry);
                             }
                             smooth: true
                             mipmap: true
@@ -1059,8 +1069,11 @@ Item {
                                         const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, 0);
                                         const screenX = root.parentScreen ? root.parentScreen.x : 0;
                                         const relativeX = globalPos.x - screenX;
-                                        const yPos = root.barThickness + root.barSpacing - 7;
-                                        windowContextMenuLoader.item.showAt(relativeX, yPos, false, "top");
+                                        const isBottom = root.axis?.edge === "bottom";
+                                        const yPos = isBottom
+                                            ? (root.parentScreen.height - root.barThickness - root.barSpacing + 7)
+                                            : (root.barThickness + root.barSpacing - 7);
+                                        windowContextMenuLoader.item.showAt(relativeX, yPos, false, isBottom ? "bottom" : "top");
                                     }
                                 }
                             } else if (mouse.button === Qt.MiddleButton) {
@@ -1192,10 +1205,12 @@ Item {
                             height: root.appIconSize
                             source: {
                                 root._desktopEntriesUpdateTrigger;
+                                root._appIdSubstitutionsTrigger;
                                 if (!appId)
                                     return "";
-                                const desktopEntry = DesktopEntries.heuristicLookup(appId);
-                                return Paths.getAppIcon(appId, desktopEntry);
+                                const moddedId = Paths.moddedAppId(appId);
+                                const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
+                                return Paths.getAppIcon(moddedId, desktopEntry);
                             }
                             smooth: true
                             mipmap: true
@@ -1333,8 +1348,11 @@ Item {
                                         const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, 0);
                                         const screenX = root.parentScreen ? root.parentScreen.x : 0;
                                         const relativeX = globalPos.x - screenX;
-                                        const yPos = root.barThickness + root.barSpacing - 7;
-                                        windowContextMenuLoader.item.showAt(relativeX, yPos, false, "top");
+                                        const isBottom = root.axis?.edge === "bottom";
+                                        const yPos = isBottom
+                                            ? (root.parentScreen.height - root.barThickness - root.barSpacing + 7)
+                                            : (root.barThickness + root.barSpacing - 7);
+                                        windowContextMenuLoader.item.showAt(relativeX, yPos, false, isBottom ? "bottom" : "top");
                                     }
                                 }
                             }
