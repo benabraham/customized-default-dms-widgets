@@ -521,7 +521,7 @@ Item {
 
     Timer {
         id: recalcTimer
-        interval: 16  // ~1 frame
+        interval: 200  // debounce for animated titles (Claude Code, etc.)
         onTriggered: widthManager.doRecalculate()
     }
 
