@@ -54,6 +54,10 @@ Changes:
 - Click cycles through grouped windows
 - Tooltips disabled by default (commented out)
 - **Smart dynamic title width** - Non-linear algorithm shrinks longer titles proportionally more when space is constrained
+- **Niri column indicators** - Visual frame around windows in the same Niri column
+  - Detects stacked vs tabbed columns (different colors)
+  - Frame opacity increases when group has focused window
+- **Niri floating indicator** - Line indicator on floating windows
 - Settings panel with:
   - "Strip App Name from Title" - Removes app name, version numbers, instance markers from window titles
   - "Title Compression" - Configurable ratio for how aggressively longer titles shrink (1=equal, 2=normal, up to 10=extreme)

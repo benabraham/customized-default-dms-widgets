@@ -32,6 +32,7 @@ Item {
     property real compressionRatio: Math.pow(100, Math.max(-50, Math.min(50, compressionBias)) / 50)
     onCompressionBiasChanged: widthManager.recalculate()
     property bool debugMode: PluginService.loadPluginData("CustomRunningApps", "debugMode", false)
+    property bool showStackingTabbing: PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true)
 
     // Configurable sizes and spacing
     property real appIconSize: PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24)
@@ -164,6 +165,78 @@ Item {
     property int _appIdSubstitutionsTrigger: 0
     property int _toplevelsUpdateTrigger: 0
 
+    // Niri column/floating indicators
+    readonly property bool isNiri: CompositorService.isNiri
+
+    // Map niri window ID → full niri window object (with layout, is_floating)
+    readonly property var niriWindowsMap: {
+        if (!isNiri) return {}
+        const windows = NiriService.windows || []
+        const map = {}
+        for (const w of windows) {
+            map[w.id] = w
+        }
+        return map
+    }
+
+    // Column grouping data: { "wsId-colIndex": { windows: [...], isTabbed: bool } }
+    readonly property var columnGroups: {
+        if (!isNiri) return {}
+        const windows = NiriService.windows || []
+        const groups = {}
+
+        // First pass: group windows by workspace + column, find reference heights
+        const refHeights = {}  // wsId -> reference full height from single-window columns
+        for (const w of windows) {
+            if (!w.layout?.pos_in_scrolling_layout) continue
+            const col = w.layout.pos_in_scrolling_layout[0]
+            const wsId = w.workspace_id
+            const key = `${wsId}-${col}`
+            const height = w.layout.tile_size?.[1] || 0
+
+            if (!groups[key]) {
+                groups[key] = { windows: [], sumHeight: 0, maxHeight: 0, wsId, col }
+            }
+            groups[key].windows.push(w)
+            groups[key].sumHeight += height
+            groups[key].maxHeight = Math.max(groups[key].maxHeight, height)
+        }
+
+        // Find reference height per workspace from single-window columns
+        for (const key in groups) {
+            const g = groups[key]
+            if (g.windows.length === 1) {
+                const wsId = g.wsId
+                const height = g.maxHeight
+                if (!refHeights[wsId] || height > refHeights[wsId]) {
+                    refHeights[wsId] = height
+                }
+            }
+        }
+
+        // Second pass: determine if each column is tabbed
+        // TABBED: each window has ~full height (windows overlap)
+        // STACKED: each window has fraction of full height (windows share space)
+        for (const key in groups) {
+            const g = groups[key]
+            if (g.windows.length <= 1) {
+                g.isTabbed = false
+                continue
+            }
+            const refHeight = refHeights[g.wsId] || g.maxHeight
+            const avgHeight = g.sumHeight / g.windows.length
+            // If average window height is close to reference full height, they're tabbed (overlapping)
+            g.isTabbed = avgHeight > refHeight * 0.8
+        }
+
+        return groups
+    }
+
+    function getNiriWindow(toplevel) {
+        if (!isNiri || !toplevel?.niriWindowId) return null
+        return niriWindowsMap[toplevel.niriWindowId] || null
+    }
+
     readonly property var sortedToplevels: {
         _toplevelsUpdateTrigger;
         const toplevels = CompositorService.sortedToplevels;
@@ -215,6 +288,8 @@ Item {
                     root.widgetPaddingPreset = PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M");
                 } else if (key === "iconTitleSpacing") {
                     root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S");
+                } else if (key === "showStackingTabbing") {
+                    root.showStackingTabbing = PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true);
                 }
             }
         }
@@ -701,17 +776,22 @@ Item {
 
     Component {
         id: rowLayout
-        Row {
-            spacing: root.pillSpacing
+        Item {
+            implicitWidth: pillRow.implicitWidth
+            implicitHeight: pillRow.implicitHeight
 
-            Repeater {
-                id: windowRepeater
-                model: ScriptModel {
-                    values: SettingsData.runningAppsGroupByApp ? groupedWindows : sortedToplevels
-                    objectProp: SettingsData.runningAppsGroupByApp ? "appId" : "address"
-                }
+            Row {
+                id: pillRow
+                spacing: root.pillSpacing
 
-                delegate: Item {
+                Repeater {
+                    id: windowRepeater
+                    model: ScriptModel {
+                        values: SettingsData.runningAppsGroupByApp ? groupedWindows : sortedToplevels
+                        objectProp: SettingsData.runningAppsGroupByApp ? "appId" : "address"
+                    }
+
+                    delegate: Item {
                     id: delegateItem
 
                     property bool isGrouped: SettingsData.runningAppsGroupByApp
@@ -746,6 +826,40 @@ Item {
 
                     // Stable identifier for width management (index is not stable when items are removed)
                     readonly property string stableId: isGrouped ? appId : (modelData?.address ?? index.toString())
+
+                    // Niri window data (layout, floating status)
+                    readonly property var niriWindow: root.getNiriWindow(toplevelData)
+                    readonly property int columnIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[0] ?? -1
+                    readonly property int rowIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[1] ?? -1
+                    readonly property bool isFloating: niriWindow?.is_floating ?? false
+
+                    // Column grouping
+                    readonly property string columnKey: niriWindow ?
+                        `${niriWindow.workspace_id}-${columnIndex}` : ''
+                    readonly property var columnGroup: columnKey ? root.columnGroups[columnKey] : null
+                    readonly property bool columnHasMultiple: (columnGroup?.windows?.length ?? 0) > 1
+                    readonly property bool isTabbed: columnGroup?.isTabbed ?? false
+
+                    // Position within column (sorted by row index)
+                    readonly property int positionInColumn: {
+                        if (!columnGroup || !niriWindow) return -1
+                        const sorted = columnGroup.windows.slice().sort((a, b) =>
+                            (a.layout?.pos_in_scrolling_layout?.[1] || 0) -
+                            (b.layout?.pos_in_scrolling_layout?.[1] || 0)
+                        )
+                        return sorted.findIndex(w => w.id === niriWindow.id)
+                    }
+                    readonly property bool isFirstInColumn: positionInColumn === 0
+                    readonly property bool isLastInColumn: columnGroup ?
+                        positionInColumn === columnGroup.windows.length - 1 : false
+
+                    // Frame visibility (skip when grouping by app is enabled)
+                    readonly property bool showColumnFrame: root.isNiri && !SettingsData.runningAppsGroupByApp && columnHasMultiple
+                    readonly property bool showLeftLine: showColumnFrame && isFirstInColumn
+                    readonly property bool showRightLine: showColumnFrame && isLastInColumn
+                    readonly property bool showTopLine: showColumnFrame
+                    readonly property bool showBottomLine: showColumnFrame
+                    readonly property color frameColor: isTabbed ? Theme.warning : Theme.primary
 
                     // Smart pill width: natural text width (unconstrained)
                     readonly property real naturalTextWidth: hiddenText.implicitWidth
@@ -1019,6 +1133,18 @@ Item {
                                 maximumLineCount: 1
                             }
                         }
+
+                        // Floating indicator - line on top
+                        Rectangle {
+                            visible: root.showStackingTabbing && delegateItem.isFloating
+                            anchors.top: parent.top
+                            anchors.left: parent.left
+                            anchors.right: parent.right
+                            anchors.topMargin: -2
+                            height: 2
+                            radius: 1
+                            color: Theme.warning
+                        }
                     }
 
                     MouseArea {
@@ -1120,6 +1246,99 @@ Item {
                     }
                 }
             }
+            }
+
+            // Frame overlay - renders on top of all pills
+            Repeater {
+                model: {
+                    // Build list of column groups that need frames
+                    if (!root.showStackingTabbing || !root.isNiri || SettingsData.runningAppsGroupByApp) return []
+                    const groups = root.columnGroups
+                    const result = []
+                    for (const key in groups) {
+                        const g = groups[key]
+                        if (g.windows.length > 1) {
+                            result.push({ key: key, windows: g.windows, isTabbed: g.isTabbed, wsId: g.wsId, col: g.col })
+                        }
+                    }
+                    return result
+                }
+
+                delegate: Rectangle {
+                    id: frameRect
+                    readonly property var group: modelData
+                    readonly property color baseColor: (group && group.isTabbed) ? Theme.secondary : Theme.primary
+
+                    // Check if any window in the group is focused
+                    readonly property bool groupHasFocus: {
+                        if (!group || !group.windows) return false
+                        const toplevels = root.sortedToplevels
+                        for (const niriWin of group.windows) {
+                            const toplevel = toplevels.find(t => t.niriWindowId === niriWin.id)
+                            if (toplevel && toplevel.activated) return true
+                        }
+                        return false
+                    }
+
+                    readonly property color frameColor: Qt.rgba(baseColor.r, baseColor.g, baseColor.b, groupHasFocus ? 0.75 : 0.5)
+
+                    // Calculate frame bounds from actual pill positions
+                    readonly property var frameBounds: {
+                        root._widthUpdateTrigger  // react to width changes
+                        const toplevels = root.sortedToplevels
+                        const items = SettingsData.runningAppsGroupByApp ? root.groupedWindows : toplevels
+                        if (!items || items.length === 0) return { x: 0, width: 0 }
+
+                        let startX = 0
+                        let endX = 0
+                        let foundFirst = false
+
+                        let currentX = 0
+                        for (let i = 0; i < items.length; i++) {
+                            const item = items[i]
+                            const toplevel = item
+                            const niriWin = root.getNiriWindow(toplevel)
+
+                            // Calculate this pill's width
+                            const stableId = toplevel?.address ?? i.toString()
+                            const naturalWidth = widthManager.originalWidths[stableId] || 0
+                            const maxWidth = widthManager.constrainedWidths[stableId]
+                            const effectiveTextWidth = (maxWidth !== undefined && maxWidth >= 0) ? Math.min(naturalWidth, maxWidth) : naturalWidth
+                            const compact = root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode)
+                            const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + root.pillPadding : 0)
+                            const pillWidth = root.pillPadding + root.appIconSize + root.iconTitleSpacing + textWidth
+
+                            // Check if this pill belongs to current group
+                            if (niriWin) {
+                                const col = niriWin.layout?.pos_in_scrolling_layout?.[0] ?? -1
+                                const pillKey = `${niriWin.workspace_id}-${col}`
+                                if (pillKey === group.key) {
+                                    if (!foundFirst) {
+                                        startX = currentX
+                                        foundFirst = true
+                                    }
+                                    endX = currentX + pillWidth
+                                }
+                            }
+
+                            currentX += pillWidth + root.pillSpacing
+                        }
+
+                        return { x: startX, width: endX - startX }
+                    }
+
+                    x: frameBounds.x
+                    width: frameBounds.width
+                    y: 0
+                    height: pillRow.height
+                    color: "transparent"
+                    border.width: 2
+                    border.color: frameColor
+                    radius: Theme.cornerRadius
+                    visible: frameBounds.width > 0
+                    z: 10
+                }
+            }
         }
     }
 
@@ -1165,6 +1384,40 @@ Item {
                         return appName + (windowTitle ? " • " + windowTitle : "");
                     }
                     readonly property real visualWidth: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? root.appIconSize : (root.pillPadding + root.appIconSize + root.iconTitleSpacing + (titleText.implicitWidth > 0 ? titleText.implicitWidth + root.pillPadding : 120))
+
+                    // Niri window data (layout, floating status)
+                    readonly property var niriWindow: root.getNiriWindow(toplevelData)
+                    readonly property int columnIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[0] ?? -1
+                    readonly property int rowIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[1] ?? -1
+                    readonly property bool isFloating: niriWindow?.is_floating ?? false
+
+                    // Column grouping
+                    readonly property string columnKey: niriWindow ?
+                        `${niriWindow.workspace_id}-${columnIndex}` : ''
+                    readonly property var columnGroup: columnKey ? root.columnGroups[columnKey] : null
+                    readonly property bool columnHasMultiple: (columnGroup?.windows?.length ?? 0) > 1
+                    readonly property bool isTabbed: columnGroup?.isTabbed ?? false
+
+                    // Position within column (sorted by row index)
+                    readonly property int positionInColumn: {
+                        if (!columnGroup || !niriWindow) return -1
+                        const sorted = columnGroup.windows.slice().sort((a, b) =>
+                            (a.layout?.pos_in_scrolling_layout?.[1] || 0) -
+                            (b.layout?.pos_in_scrolling_layout?.[1] || 0)
+                        )
+                        return sorted.findIndex(w => w.id === niriWindow.id)
+                    }
+                    readonly property bool isFirstInColumn: positionInColumn === 0
+                    readonly property bool isLastInColumn: columnGroup ?
+                        positionInColumn === columnGroup.windows.length - 1 : false
+
+                    // Frame visibility (skip when grouping by app is enabled)
+                    readonly property bool showColumnFrame: root.isNiri && !SettingsData.runningAppsGroupByApp && columnHasMultiple
+                    readonly property bool showTopLine: showColumnFrame && isFirstInColumn
+                    readonly property bool showBottomLine: showColumnFrame && isLastInColumn
+                    readonly property bool showLeftLine: showColumnFrame
+                    readonly property bool showRightLine: showColumnFrame
+                    readonly property color frameColor: isTabbed ? Theme.warning : Theme.primary
 
                     width: root.barThickness
                     height: root.appIconSize
@@ -1298,6 +1551,70 @@ Item {
                             elide: Text.ElideRight
                             maximumLineCount: 1
                         }
+
+                        // Floating indicator - line on left side for vertical bar
+                        Rectangle {
+                            visible: root.showStackingTabbing && delegateItem.isFloating
+                            anchors.left: parent.left
+                            anchors.top: parent.top
+                            anchors.bottom: parent.bottom
+                            anchors.leftMargin: -2
+                            width: 2
+                            radius: 1
+                            color: Theme.warning
+                        }
+                    }
+
+                    // Column frame - top line (first in column only)
+                    Rectangle {
+                        visible: delegateItem.showTopLine
+                        anchors.top: visualContent.top
+                        anchors.topMargin: -4
+                        x: visualContent.x + (delegateItem.showLeftLine ? -4 : 0)
+                        width: visualContent.width + (delegateItem.showLeftLine ? 4 : 0) + (delegateItem.showRightLine ? 4 : 0)
+                        height: 2
+                        radius: 1
+                        color: delegateItem.frameColor
+                    }
+
+                    // Column frame - bottom line (last in column only)
+                    Rectangle {
+                        visible: delegateItem.showBottomLine
+                        anchors.bottom: visualContent.bottom
+                        anchors.bottomMargin: -4
+                        x: visualContent.x + (delegateItem.showLeftLine ? -4 : 0)
+                        width: visualContent.width + (delegateItem.showLeftLine ? 4 : 0) + (delegateItem.showRightLine ? 4 : 0)
+                        height: 2
+                        radius: 1
+                        color: delegateItem.frameColor
+                    }
+
+                    // Column frame - left line (all in column)
+                    Rectangle {
+                        visible: delegateItem.showLeftLine
+                        anchors.left: visualContent.left
+                        anchors.top: visualContent.top
+                        anchors.bottom: visualContent.bottom
+                        anchors.leftMargin: -4
+                        anchors.topMargin: delegateItem.showTopLine ? -4 : 0
+                        anchors.bottomMargin: delegateItem.showBottomLine ? -4 : 0
+                        width: 2
+                        radius: 1
+                        color: delegateItem.frameColor
+                    }
+
+                    // Column frame - right line (all in column)
+                    Rectangle {
+                        visible: delegateItem.showRightLine
+                        anchors.right: visualContent.right
+                        anchors.top: visualContent.top
+                        anchors.bottom: visualContent.bottom
+                        anchors.rightMargin: -4
+                        anchors.topMargin: delegateItem.showTopLine ? -4 : 0
+                        anchors.bottomMargin: delegateItem.showBottomLine ? -4 : 0
+                        width: 2
+                        radius: 1
+                        color: delegateItem.frameColor
                     }
 
                     MouseArea {

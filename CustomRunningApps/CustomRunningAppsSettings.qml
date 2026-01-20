@@ -70,6 +70,13 @@ PluginSettings {
         defaultValue: true
     }
 
+    ToggleSetting {
+        settingKey: "showStackingTabbing"
+        label: "Show Stacking and Tabbing"
+        description: "Show visual frame around windows in the same Niri column (stacked/tabbed)"
+        defaultValue: true
+    }
+
     RealSliderSetting {
         settingKey: "compressionBias"
         label: "Compression Bias"
