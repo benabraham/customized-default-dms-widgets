@@ -103,7 +103,7 @@ Item {
                 }
             ];
 
-        if (!root.screenName || !SettingsData.workspacesPerMonitor) {
+        if (!root.screenName || SettingsData.workspaceFollowFocus) {
             return workspaces.slice().sort((a, b) => a.num - b.num);
         }
 
@@ -116,7 +116,7 @@ Item {
     }
 
     function getSwayActiveWorkspace() {
-        if (!root.screenName || !SettingsData.workspacesPerMonitor) {
+        if (!root.screenName || SettingsData.workspaceFollowFocus) {
             const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
             return focusedWs ? focusedWs.num : 1;
         }
@@ -146,7 +146,7 @@ Item {
             ];
         }
 
-        if (!root.screenName || !SettingsData.workspacesPerMonitor) {
+        if (!root.screenName || SettingsData.workspaceFollowFocus) {
             filtered = filtered.slice().sort((a, b) => a.id - b.id);
         } else {
             const monitorWorkspaces = filtered.filter(ws => ws.monitor?.name === root.screenName);
@@ -172,7 +172,7 @@ Item {
     }
 
     function getHyprlandActiveWorkspace() {
-        if (!root.screenName || !SettingsData.workspacesPerMonitor) {
+        if (!root.screenName || SettingsData.workspaceFollowFocus) {
             return Hyprland.focusedWorkspace?.id || 1;
         }
 
@@ -318,7 +318,7 @@ Item {
         }
 
         let workspaces;
-        if (!root.screenName || !SettingsData.workspacesPerMonitor) {
+        if (!root.screenName || SettingsData.workspaceFollowFocus) {
             workspaces = NiriService.getCurrentOutputWorkspaceNumbers();
         } else {
             const displayWorkspaces = NiriService.allWorkspaces.filter(ws => ws.output === root.screenName).map(ws => ws.idx + 1);
@@ -344,7 +344,7 @@ Item {
             return 1;
         }
 
-        if (!root.screenName || !SettingsData.workspacesPerMonitor) {
+        if (!root.screenName || SettingsData.workspaceFollowFocus) {
             return NiriService.getCurrentWorkspaceNumber();
         }
 
@@ -798,6 +798,74 @@ Item {
                 }
                 property bool isHovered: mouseArea.containsMouse
 
+                readonly property color unfocusedColor: {
+                    switch (SettingsData.workspaceUnfocusedColorMode) {
+                    case "s": return Theme.surface
+                    case "sc": return Theme.surfaceContainer
+                    case "sch": return Theme.surfaceContainerHigh
+                    default: return Theme.surfaceTextAlpha
+                    }
+                }
+
+                readonly property color activeColor: {
+                    switch (SettingsData.workspaceColorMode) {
+                    case "s": return Theme.surface
+                    case "sc": return Theme.surfaceContainer
+                    case "sch": return Theme.surfaceContainerHigh
+                    case "none": return unfocusedColor
+                    default: return Theme.primary
+                    }
+                }
+
+                readonly property color occupiedColor: {
+                    switch (SettingsData.workspaceOccupiedColorMode) {
+                    case "sec": return Theme.secondary
+                    case "s": return Theme.surface
+                    case "sc": return Theme.surfaceContainer
+                    case "sch": return Theme.surfaceContainerHigh
+                    case "schh": return Theme.surfaceContainerHighest
+                    default: return unfocusedColor
+                    }
+                }
+
+                readonly property color urgentColor: {
+                    switch (SettingsData.workspaceUrgentColorMode) {
+                    case "primary": return Theme.primary
+                    case "secondary": return Theme.secondary
+                    case "s": return Theme.surface
+                    case "sc": return Theme.surfaceContainer
+                    default: return Theme.error
+                    }
+                }
+
+                property bool isOccupied: {
+                    if (CompositorService.isHyprland)
+                        return Array.from(Hyprland.toplevels?.values || []).some(tl => tl.workspace?.id === modelData?.id)
+                    if (CompositorService.isDwl)
+                        return modelData.clients > 0
+                    if (CompositorService.isNiri) {
+                        const workspace = NiriService.allWorkspaces.find(ws => ws.idx + 1 === modelData && ws.output === root.screenName)
+                        return workspace ? (NiriService.windows?.some(win => win.workspace_id === workspace.id) ?? false) : false
+                    }
+                    return false
+                }
+
+                function getContrastingIconColor(bgColor) {
+                    const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
+                    return luminance > 0.4 ? Qt.rgba(0.15, 0.15, 0.15, 1) : Qt.rgba(0.8, 0.8, 0.8, 1)
+                }
+                function getContrastingTextColor(bgColor) {
+                    const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
+                    return luminance > 0.4 ? Qt.rgba(0.05, 0.05, 0.05, 0.95) : Qt.rgba(0.95, 0.95, 0.95, 0.95)
+                }
+                readonly property color quickshellIconActiveColor: getContrastingIconColor(activeColor)
+                readonly property color quickshellIconInactiveColor: getContrastingIconColor(unfocusedColor)
+
+                readonly property color activeTextColor: getContrastingTextColor(activeColor)
+                readonly property color unfocusedTextColor: getContrastingTextColor(unfocusedColor)
+                readonly property color occupiedTextColor: getContrastingTextColor(occupiedColor)
+                readonly property color urgentTextColor: getContrastingTextColor(urgentColor)
+
                 property var loadedWorkspaceData: null
                 property bool loadedIsUrgent: false
                 property bool isUrgent: {
@@ -951,7 +1019,7 @@ Item {
                     height: delegateRoot.visualHeight
                     anchors.centerIn: parent
                     radius: Theme.cornerRadius
-                    color: isActive ? Theme.surfaceContainerHighest : "transparent"
+                    color: isActive ? activeColor : isUrgent ? urgentColor : isPlaceholder ? Theme.surfaceTextLight : isHovered ? Theme.withAlpha(unfocusedColor, 0.7) : isOccupied ? occupiedColor : unfocusedColor
 
                     border.width: isUrgent ? 2 : 0
                     border.color: isUrgent ? Theme.error : Theme.withAlpha(Theme.error, 0)
@@ -1020,7 +1088,7 @@ Item {
                                             anchors.verticalCenter: parent.verticalCenter
                                             name: loadedIconData?.value ?? ""
                                             size: root.wsNameIconSize
-                                            color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                            color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             weight: (isActive && !isPlaceholder) ? 500 : 400
                                         }
                                     }
@@ -1034,7 +1102,7 @@ Item {
                                             id: wsText
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: loadedIconData?.value ?? ""
-                                            color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                            color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                             font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
                                         }
@@ -1049,7 +1117,7 @@ Item {
                                             id: wsIndexText
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: root.getWorkspaceIndex(modelData, index)
-                                            color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                            color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                             font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
                                         }
@@ -1082,7 +1150,7 @@ Item {
                                                 layer.effect: MultiEffect {
                                                     saturation: 0
                                                     colorization: 1
-                                                    colorizationColor: isActive ? Theme.primaryContainer : Theme.primary
+                                                    colorizationColor: isActive ? quickshellIconActiveColor : quickshellIconInactiveColor
                                                 }
                                             }
 
@@ -1173,7 +1241,7 @@ Item {
                                         StyledText {
                                             visible: true
                                             text: index + 1
-                                            color: isActive ? Theme.surfaceText : Theme.surfaceTextMedium
+                                            color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             font.pixelSize: 18
                                             anchors.horizontalCenter: parent.horizontalCenter
                                         }
@@ -1183,7 +1251,7 @@ Item {
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             name: loadedIconData?.value ?? ""
                                             size: root.wsNameIconSize
-                                            color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                            color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             weight: (isActive && !isPlaceholder) ? 500 : 400
                                         }
 
@@ -1191,7 +1259,7 @@ Item {
                                             visible: loadedHasIcon && loadedIconData?.type === "text"
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: loadedIconData?.value ?? ""
-                                            color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                            color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                             font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
                                         }
@@ -1271,7 +1339,7 @@ Item {
                                                         layer.effect: MultiEffect {
                                                             saturation: 0
                                                             colorization: 1
-                                                            colorizationColor: isActive ? Theme.primaryContainer : Theme.primary
+                                                            colorizationColor: isActive ? quickshellIconActiveColor : quickshellIconInactiveColor
                                                         }
                                                     }
 
@@ -1362,7 +1430,7 @@ Item {
                                 anchors.centerIn: parent
                                 name: loadedIconData ? loadedIconData.value : "" // NULL CHECK
                                 size: Theme.fontSizeSmall
-                                color: isActive ? Theme.surfaceText : Theme.surfaceTextMedium
+                                color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                 weight: isActive && !isPlaceholder ? 500 : 400
                             }
                         }
@@ -1377,7 +1445,7 @@ Item {
                             StyledText {
                                 anchors.centerIn: parent
                                 text: loadedIconData ? loadedIconData.value : "" // NULL CHECK
-                                color: isActive ? Theme.surfaceText : Theme.surfaceTextMedium
+                                color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                 font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                 font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
                             }
@@ -1395,7 +1463,7 @@ Item {
                                 text: {
                                     return root.getWorkspaceIndex(modelData, index);
                                 }
-                                color: (isActive || isUrgent) ? Theme.surfaceText : isPlaceholder ? Theme.surfaceTextAlpha : Theme.surfaceTextMedium
+                                color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                 font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                 font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
                             }
