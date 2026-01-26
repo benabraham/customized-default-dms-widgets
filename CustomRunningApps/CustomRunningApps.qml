@@ -31,6 +31,7 @@ Item {
     property real compressionBias: parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"))
     property real compressionRatio: Math.pow(100, Math.max(-50, Math.min(50, compressionBias)) / 50)
     onCompressionBiasChanged: widthManager.recalculate()
+    property int titleDebounce: parseInt(PluginService.loadPluginData("CustomRunningApps", "titleDebounce", "300"))
     property bool debugMode: PluginService.loadPluginData("CustomRunningApps", "debugMode", false)
     property bool showStackingTabbing: PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true)
 
@@ -165,6 +166,45 @@ Item {
     property int _appIdSubstitutionsTrigger: 0
     property int _toplevelsUpdateTrigger: 0
 
+    // Title debounce cache (lives at root so it survives delegate recreation)
+    // Maps stableId -> { debounced: "visible title", pending: "latest raw title" }
+    property var _titleCache: ({})
+    property int _titleCacheTrigger: 0
+
+    function requestTitleUpdate(stableId, rawTitle) {
+        const entry = _titleCache[stableId]
+        if (!entry) {
+            _titleCache[stableId] = { debounced: rawTitle, pending: rawTitle }
+            _titleCacheTrigger++
+            return
+        }
+        if (entry.pending === rawTitle)
+            return
+        entry.pending = rawTitle
+        _titleDebounceTimer.restart()
+    }
+
+    function getCachedTitle(stableId) {
+        return _titleCache[stableId]?.debounced || ""
+    }
+
+    Timer {
+        id: _titleDebounceTimer
+        interval: root.titleDebounce
+        onTriggered: {
+            let changed = false
+            for (const id in root._titleCache) {
+                const entry = root._titleCache[id]
+                if (entry.debounced !== entry.pending) {
+                    entry.debounced = entry.pending
+                    changed = true
+                }
+            }
+            if (changed)
+                root._titleCacheTrigger++
+        }
+    }
+
     // Niri column/floating indicators
     readonly property bool isNiri: CompositorService.isNiri
 
@@ -278,6 +318,8 @@ Item {
                     root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true);
                 } else if (key === "compressionBias") {
                     root.compressionBias = parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"));
+                } else if (key === "titleDebounce") {
+                    root.titleDebounce = parseInt(PluginService.loadPluginData("CustomRunningApps", "titleDebounce", "300"));
                 } else if (key === "debugMode") {
                     root.debugMode = PluginService.loadPluginData("CustomRunningApps", "debugMode", false);
                 } else if (key === "appIconSize") {
@@ -434,8 +476,12 @@ Item {
         property var constrainedWidths: ({})   // index -> max allowed text width (-1 = unconstrained)
 
         function register(idx, naturalWidth) {
-            originalWidths[idx] = naturalWidth;
-            recalculate();
+            const prev = originalWidths[idx]
+            // Skip recalc if width changed by less than 3px (filters oscillating titles)
+            if (prev !== undefined && Math.abs(prev - naturalWidth) < 3)
+                return
+            originalWidths[idx] = naturalWidth
+            recalculate()
         }
 
         function unregister(idx) {
@@ -799,7 +845,8 @@ Item {
                     property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
                     property bool isFocused: toplevelData ? toplevelData.activated : false
                     property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
-                    property string windowTitle: {
+                    // Raw title from compositor (updates immediately, may flash briefly to defaults like "bash")
+                    readonly property string rawTitle: {
                         const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
                         if (!root.stripAppName)
                             return title;
@@ -808,6 +855,12 @@ Item {
                         const appName = appId ? Paths.getAppName(appId, desktopEntry) : "";
                         return root.stripAppNameFromTitle(title, appName) || title;
                     }
+                    // Debounced title via root-level cache (survives delegate recreation)
+                    readonly property string windowTitle: {
+                        root._titleCacheTrigger
+                        return root.getCachedTitle(stableId) || rawTitle
+                    }
+                    onRawTitleChanged: root.requestTitleUpdate(stableId, rawTitle)
                     property var toplevelObject: toplevelData
                     property int windowCount: isGrouped ? modelData.windows.length : 1
                     property string tooltipText: {
@@ -904,7 +957,10 @@ Item {
                     readonly property string suffixText: hasDashPattern ? windowTitle.substring(dashIndex) : ""
 
                     // Register/unregister with manager
-                    Component.onCompleted: widthManager.register(stableId, naturalTextWidth)
+                    Component.onCompleted: {
+                        root.requestTitleUpdate(stableId, rawTitle)
+                        widthManager.register(stableId, naturalTextWidth)
+                    }
                     Component.onDestruction: widthManager.unregister(stableId)
                     onNaturalTextWidthChanged: widthManager.register(stableId, naturalTextWidth)
 
@@ -1362,7 +1418,7 @@ Item {
                     property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
                     property bool isFocused: toplevelData ? toplevelData.activated : false
                     property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
-                    property string windowTitle: {
+                    readonly property string rawTitle: {
                         const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
                         if (!root.stripAppName)
                             return title;
@@ -1370,6 +1426,20 @@ Item {
                         const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
                         const appName = appId ? Paths.getAppName(appId, desktopEntry) : "";
                         return root.stripAppNameFromTitle(title, appName) || title;
+                    }
+                    // Debounced title via root-level cache (survives delegate recreation)
+                    readonly property string windowTitle: {
+                        root._titleCacheTrigger
+                        const id = isGrouped ? appId : (modelData?.address ?? index.toString())
+                        return root.getCachedTitle(id) || rawTitle
+                    }
+                    onRawTitleChanged: {
+                        const id = isGrouped ? appId : (modelData?.address ?? index.toString())
+                        root.requestTitleUpdate(id, rawTitle)
+                    }
+                    Component.onCompleted: {
+                        const id = isGrouped ? appId : (modelData?.address ?? index.toString())
+                        root.requestTitleUpdate(id, rawTitle)
                     }
                     property var toplevelObject: toplevelData
                     property int windowCount: isGrouped ? modelData.windows.length : 1

@@ -88,6 +88,17 @@ PluginSettings {
         decimals: 0
     }
 
+    SteppedSliderSetting {
+        settingKey: "titleDebounce"
+        label: "Title Debounce"
+        description: "Delay before updating window titles (filters flickering from terminals)"
+        minimum: 0
+        maximum: 2000
+        stepSize: 50
+        defaultValue: 300
+        unit: "ms"
+    }
+
     ToggleSetting {
         settingKey: "debugMode"
         label: "Debug Mode"
