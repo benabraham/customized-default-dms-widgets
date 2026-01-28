@@ -1030,8 +1030,8 @@ Item {
                     Component.onDestruction: widthManager.unregister(stableId)
                     onNaturalTextWidthChanged: widthManager.register(stableId, naturalTextWidth)
 
-                    // Hidden text for measuring natural width
-                    Text {
+                    // Hidden text for measuring natural width (using StyledText to match display)
+                    StyledText {
                         id: hiddenText
                         visible: false
                         text: windowTitle
@@ -1238,7 +1238,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: !(root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode))
                             clip: true
-                            width: effectiveTextWidth + root.pillPadding
+                            width: effectiveTextWidth
 
                             StyledText {
                                 id: prefixTitleText
