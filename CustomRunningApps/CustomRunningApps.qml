@@ -1238,7 +1238,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             visible: !(root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode))
                             clip: true
-                            width: effectiveTextWidth + root.pillPadding - Theme.spacingXS
+                            width: effectiveTextWidth + root.pillPadding
 
                             StyledText {
                                 id: prefixTitleText
