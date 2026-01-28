@@ -469,6 +469,61 @@ Item {
     property real wsNameIconSize: roundToStep2(PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsNameIconSize", 24))
     property bool debugMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "debugMode", false)
     property string wsGapPreset: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsGapPreset", "XL")
+    property bool flatOuterEdge: PluginService.loadPluginData("CustomWorkspaceSwitcher", "flatOuterEdge", false)
+
+    // Corner radii based on bar edge (flat on outer edge when enabled)
+    readonly property real cornerRadius: Theme.cornerRadius
+    readonly property real topLeftRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "left") ? 0 : cornerRadius
+    readonly property real topRightRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "right") ? 0 : cornerRadius
+    readonly property real bottomLeftRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "left") ? 0 : cornerRadius
+    readonly property real bottomRightRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "right") ? 0 : cornerRadius
+
+    // Color settings for each state
+    property string activeColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "activeColorMode", "primary")
+    property real activeOpacity: parseFloat(PluginService.loadPluginData("CustomWorkspaceSwitcher", "activeOpacity", "100"))
+    property string activeTextColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "activeTextColorMode", "auto")
+
+    property string unfocusedColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "unfocusedColorMode", "surfaceTextAlpha")
+    property real unfocusedOpacity: parseFloat(PluginService.loadPluginData("CustomWorkspaceSwitcher", "unfocusedOpacity", "100"))
+    property string unfocusedTextColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "unfocusedTextColorMode", "auto")
+
+    property string occupiedColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "occupiedColorMode", "surfaceTextAlpha")
+    property real occupiedOpacity: parseFloat(PluginService.loadPluginData("CustomWorkspaceSwitcher", "occupiedOpacity", "100"))
+    property string occupiedTextColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "occupiedTextColorMode", "auto")
+
+    property string urgentColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "urgentColorMode", "error")
+    property real urgentOpacity: parseFloat(PluginService.loadPluginData("CustomWorkspaceSwitcher", "urgentOpacity", "100"))
+    property string urgentTextColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "urgentTextColorMode", "auto")
+
+    function themeColorFromMode(mode) {
+        switch (mode) {
+        case "primary": return Theme.primary
+        case "secondary": return Theme.secondary
+        case "error": return Theme.error
+        case "surface": return Theme.surface
+        case "surfaceContainer": return Theme.surfaceContainer
+        case "surfaceContainerHigh": return Theme.surfaceContainerHigh
+        case "surfaceContainerHighest": return Theme.surfaceContainerHighest
+        case "surfaceText": return Theme.surfaceText
+        case "surfaceTextAlpha": return Theme.surfaceTextAlpha
+        case "onSurface": return Theme.onSurface
+        case "widgetText": return Theme.widgetTextColor
+        case "auto": return null
+        default: return Theme.primary
+        }
+    }
+
+    readonly property color wsActiveColor: themeColorFromMode(activeColorMode)
+    readonly property color wsUnfocusedColor: themeColorFromMode(unfocusedColorMode)
+    readonly property color wsOccupiedColor: themeColorFromMode(occupiedColorMode)
+    readonly property color wsUrgentColor: themeColorFromMode(urgentColorMode)
+
+    function contrastTextColor(bgColor, bgOpacity) {
+        if (bgOpacity < 0.1)
+            return Theme.widgetTextColor
+        const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
+        return luminance > 0.5 ? Theme.onSurface : Theme.widgetTextColor
+    }
     readonly property real wsGap: {
         switch (wsGapPreset) {
             case "0": return 0
@@ -505,6 +560,32 @@ Item {
                 root.debugMode = value;
             else if (key === "wsGapPreset")
                 root.wsGapPreset = value;
+            else if (key === "flatOuterEdge")
+                root.flatOuterEdge = value;
+            else if (key === "activeColorMode")
+                root.activeColorMode = value;
+            else if (key === "activeOpacity")
+                root.activeOpacity = parseFloat(value);
+            else if (key === "activeTextColorMode")
+                root.activeTextColorMode = value;
+            else if (key === "unfocusedColorMode")
+                root.unfocusedColorMode = value;
+            else if (key === "unfocusedOpacity")
+                root.unfocusedOpacity = parseFloat(value);
+            else if (key === "unfocusedTextColorMode")
+                root.unfocusedTextColorMode = value;
+            else if (key === "occupiedColorMode")
+                root.occupiedColorMode = value;
+            else if (key === "occupiedOpacity")
+                root.occupiedOpacity = parseFloat(value);
+            else if (key === "occupiedTextColorMode")
+                root.occupiedTextColorMode = value;
+            else if (key === "urgentColorMode")
+                root.urgentColorMode = value;
+            else if (key === "urgentOpacity")
+                root.urgentOpacity = parseFloat(value);
+            else if (key === "urgentTextColorMode")
+                root.urgentTextColorMode = value;
         }
     }
 
@@ -798,45 +879,10 @@ Item {
                 }
                 property bool isHovered: mouseArea.containsMouse
 
-                readonly property color unfocusedColor: {
-                    switch (SettingsData.workspaceUnfocusedColorMode) {
-                    case "s": return Theme.surface
-                    case "sc": return Theme.surfaceContainer
-                    case "sch": return Theme.surfaceContainerHigh
-                    default: return Theme.surfaceTextAlpha
-                    }
-                }
-
-                readonly property color activeColor: {
-                    switch (SettingsData.workspaceColorMode) {
-                    case "s": return Theme.surface
-                    case "sc": return Theme.surfaceContainer
-                    case "sch": return Theme.surfaceContainerHigh
-                    case "none": return unfocusedColor
-                    default: return Theme.primary
-                    }
-                }
-
-                readonly property color occupiedColor: {
-                    switch (SettingsData.workspaceOccupiedColorMode) {
-                    case "sec": return Theme.secondary
-                    case "s": return Theme.surface
-                    case "sc": return Theme.surfaceContainer
-                    case "sch": return Theme.surfaceContainerHigh
-                    case "schh": return Theme.surfaceContainerHighest
-                    default: return unfocusedColor
-                    }
-                }
-
-                readonly property color urgentColor: {
-                    switch (SettingsData.workspaceUrgentColorMode) {
-                    case "primary": return Theme.primary
-                    case "secondary": return Theme.secondary
-                    case "s": return Theme.surface
-                    case "sc": return Theme.surfaceContainer
-                    default: return Theme.error
-                    }
-                }
+                readonly property color unfocusedColor: root.wsUnfocusedColor
+                readonly property color activeColor: root.wsActiveColor
+                readonly property color occupiedColor: root.wsOccupiedColor
+                readonly property color urgentColor: root.wsUrgentColor
 
                 property bool isOccupied: {
                     if (CompositorService.isHyprland)
@@ -850,21 +896,54 @@ Item {
                     return false
                 }
 
-                function getContrastingIconColor(bgColor) {
+                function getContrastingIconColor(bgColor, bgOpacity) {
+                    if (bgOpacity < 0.1)
+                        return Theme.widgetTextColor
                     const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
                     return luminance > 0.4 ? Qt.rgba(0.15, 0.15, 0.15, 1) : Qt.rgba(0.8, 0.8, 0.8, 1)
                 }
-                function getContrastingTextColor(bgColor) {
+                function getContrastingTextColor(bgColor, bgOpacity) {
+                    if (bgOpacity < 0.1)
+                        return Theme.widgetTextColor
                     const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
                     return luminance > 0.4 ? Qt.rgba(0.05, 0.05, 0.05, 0.95) : Qt.rgba(0.95, 0.95, 0.95, 0.95)
                 }
-                readonly property color quickshellIconActiveColor: getContrastingIconColor(activeColor)
-                readonly property color quickshellIconInactiveColor: getContrastingIconColor(unfocusedColor)
 
-                readonly property color activeTextColor: getContrastingTextColor(activeColor)
-                readonly property color unfocusedTextColor: getContrastingTextColor(unfocusedColor)
-                readonly property color occupiedTextColor: getContrastingTextColor(occupiedColor)
-                readonly property color urgentTextColor: getContrastingTextColor(urgentColor)
+                function getTextColorForState(state) {
+                    let mode, bgColor, bgOpacity
+                    switch (state) {
+                    case "active":
+                        mode = root.activeTextColorMode
+                        bgColor = activeColor
+                        bgOpacity = root.activeOpacity / 100
+                        break
+                    case "urgent":
+                        mode = root.urgentTextColorMode
+                        bgColor = urgentColor
+                        bgOpacity = root.urgentOpacity / 100
+                        break
+                    case "occupied":
+                        mode = root.occupiedTextColorMode
+                        bgColor = occupiedColor
+                        bgOpacity = root.occupiedOpacity / 100
+                        break
+                    default:
+                        mode = root.unfocusedTextColorMode
+                        bgColor = unfocusedColor
+                        bgOpacity = root.unfocusedOpacity / 100
+                    }
+                    if (mode === "auto")
+                        return getContrastingTextColor(bgColor, bgOpacity)
+                    return root.themeColorFromMode(mode)
+                }
+
+                readonly property color quickshellIconActiveColor: getContrastingIconColor(activeColor, root.activeOpacity / 100)
+                readonly property color quickshellIconInactiveColor: getContrastingIconColor(unfocusedColor, root.unfocusedOpacity / 100)
+
+                readonly property color activeTextColor: getTextColorForState("active")
+                readonly property color unfocusedTextColor: getTextColorForState("unfocused")
+                readonly property color occupiedTextColor: getTextColorForState("occupied")
+                readonly property color urgentTextColor: getTextColorForState("urgent")
 
                 property var loadedWorkspaceData: null
                 property bool loadedIsUrgent: false
@@ -1018,8 +1097,23 @@ Item {
                     width: delegateRoot.visualWidth
                     height: delegateRoot.visualHeight
                     anchors.centerIn: parent
-                    radius: Theme.cornerRadius
-                    color: isActive ? activeColor : isUrgent ? urgentColor : isPlaceholder ? Theme.surfaceTextLight : isHovered ? Theme.withAlpha(unfocusedColor, 0.7) : isOccupied ? occupiedColor : unfocusedColor
+                    topLeftRadius: root.topLeftRadius
+                    topRightRadius: root.topRightRadius
+                    bottomLeftRadius: root.bottomLeftRadius
+                    bottomRightRadius: root.bottomRightRadius
+                    color: {
+                        if (isActive)
+                            return Theme.withAlpha(activeColor, root.activeOpacity / 100)
+                        if (isUrgent)
+                            return Theme.withAlpha(urgentColor, root.urgentOpacity / 100)
+                        if (isPlaceholder)
+                            return Theme.surfaceTextLight
+                        if (isHovered)
+                            return Theme.withAlpha(unfocusedColor, Math.max(root.unfocusedOpacity / 100, 0.1))
+                        if (isOccupied)
+                            return Theme.withAlpha(occupiedColor, root.occupiedOpacity / 100)
+                        return Theme.withAlpha(unfocusedColor, root.unfocusedOpacity / 100)
+                    }
 
                     border.width: isUrgent ? 2 : 0
                     border.color: isUrgent ? Theme.error : Theme.withAlpha(Theme.error, 0)

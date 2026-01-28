@@ -58,6 +58,11 @@ Changes:
   - Detects stacked vs tabbed columns (different colors)
   - Frame opacity increases when group has focused window
 - **Niri floating indicator** - Line indicator on floating windows
+- **Custom background colors** - Separate settings for focused and unfocused pills
+  - Color selection from Theme palette (Primary, Secondary, Surface variants, etc.)
+  - Individual opacity sliders (0-100%) for each state
+- **Custom text colors** - Auto-contrast or manual selection for focused/unfocused states
+- **Flat outer edge** - Option to remove rounded corners on the edge facing screen border
 - Settings panel with:
   - "Strip App Name from Title" - Removes app name, version numbers, instance markers from window titles
   - "Title Compression" - Configurable ratio for how aggressively longer titles shrink (1=equal, 2=normal, up to 10=extreme)
@@ -85,6 +90,11 @@ Changes:
 - Click on app icon focuses that window
 - Workspace index always shown alongside icons
 - Steam games show gamepad icon, Quickshell shows themed icon
+- **Custom background colors** - Settings for all 4 states (active, unfocused, occupied, urgent)
+  - Color selection from Theme palette
+  - Individual opacity sliders (0-100%) for each state
+- **Custom text/icon colors** - Auto-contrast or manual selection for each state
+- **Flat outer edge** - Option to remove rounded corners on the screen-edge side
 
 ## dockerManager
 

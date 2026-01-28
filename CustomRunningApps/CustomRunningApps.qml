@@ -34,6 +34,58 @@ Item {
     property int titleDebounce: parseInt(PluginService.loadPluginData("CustomRunningApps", "titleDebounce", "300"))
     property bool debugMode: PluginService.loadPluginData("CustomRunningApps", "debugMode", false)
     property bool showStackingTabbing: PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true)
+    property bool flatOuterEdge: PluginService.loadPluginData("CustomRunningApps", "flatOuterEdge", false)
+    property string focusedColorMode: PluginService.loadPluginData("CustomRunningApps", "focusedColorMode", "surfaceContainerHighest")
+    property string unfocusedColorMode: PluginService.loadPluginData("CustomRunningApps", "unfocusedColorMode", "surfaceContainerHighest")
+    property real focusedOpacity: parseFloat(PluginService.loadPluginData("CustomRunningApps", "focusedOpacity", "100"))
+    property real unfocusedOpacity: parseFloat(PluginService.loadPluginData("CustomRunningApps", "unfocusedOpacity", "0"))
+
+    function themeColorFromMode(mode) {
+        switch (mode) {
+        case "primary": return Theme.primary
+        case "secondary": return Theme.secondary
+        case "surface": return Theme.surface
+        case "surfaceContainer": return Theme.surfaceContainer
+        case "surfaceContainerHigh": return Theme.surfaceContainerHigh
+        case "surfaceContainerHighest": return Theme.surfaceContainerHighest
+        case "surfaceText": return Theme.surfaceText
+        case "surfaceTextAlpha": return Theme.surfaceTextAlpha
+        case "onSurface": return Theme.onSurface
+        case "widgetText": return Theme.widgetTextColor
+        case "auto": return null
+        default: return Theme.primary
+        }
+    }
+
+    readonly property color unfocusedColor: themeColorFromMode(unfocusedColorMode)
+    readonly property color focusedColor: themeColorFromMode(focusedColorMode)
+
+    property string focusedTextColorMode: PluginService.loadPluginData("CustomRunningApps", "focusedTextColorMode", "auto")
+    property string unfocusedTextColorMode: PluginService.loadPluginData("CustomRunningApps", "unfocusedTextColorMode", "auto")
+
+    function contrastTextColor(bgColor, bgOpacity) {
+        if (bgOpacity < 0.1)
+            return Theme.widgetTextColor
+        const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
+        return luminance > 0.5 ? Theme.onSurface : Theme.widgetTextColor
+    }
+
+    // Corner radii based on bar edge (flat on outer edge when enabled)
+    readonly property real cornerRadius: Theme.cornerRadius
+    readonly property real topLeftRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "left") ? 0 : cornerRadius
+    readonly property real topRightRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "right") ? 0 : cornerRadius
+    readonly property real bottomLeftRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "left") ? 0 : cornerRadius
+    readonly property real bottomRightRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "right") ? 0 : cornerRadius
+
+    function getTextColor(isFocused) {
+        const mode = isFocused ? root.focusedTextColorMode : root.unfocusedTextColorMode
+        if (mode === "auto") {
+            const bgColor = isFocused ? root.focusedColor : root.unfocusedColor
+            const bgOpacity = isFocused ? root.focusedOpacity : root.unfocusedOpacity
+            return contrastTextColor(bgColor, bgOpacity / 100)
+        }
+        return themeColorFromMode(mode)
+    }
 
     // Configurable sizes and spacing
     property real appIconSize: PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24)
@@ -332,6 +384,20 @@ Item {
                     root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S");
                 } else if (key === "showStackingTabbing") {
                     root.showStackingTabbing = PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true);
+                } else if (key === "flatOuterEdge") {
+                    root.flatOuterEdge = PluginService.loadPluginData("CustomRunningApps", "flatOuterEdge", false);
+                } else if (key === "focusedColorMode") {
+                    root.focusedColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedColorMode", "surfaceContainerHighest");
+                } else if (key === "unfocusedColorMode") {
+                    root.unfocusedColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedColorMode", "transparent");
+                } else if (key === "focusedOpacity") {
+                    root.focusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "focusedOpacity", "100"));
+                } else if (key === "unfocusedOpacity") {
+                    root.unfocusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "unfocusedOpacity", "0"));
+                } else if (key === "focusedTextColorMode") {
+                    root.focusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedTextColorMode", "auto");
+                } else if (key === "unfocusedTextColorMode") {
+                    root.unfocusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedTextColorMode", "auto");
                 }
             }
         }
@@ -1046,13 +1112,17 @@ Item {
                         width: delegateItem.visualWidth
                         height: parent.height
                         anchors.centerIn: parent
-                        radius: Theme.cornerRadius
+                        topLeftRadius: root.topLeftRadius
+                        topRightRadius: root.topRightRadius
+                        bottomLeftRadius: root.bottomLeftRadius
+                        bottomRightRadius: root.bottomRightRadius
                         color: {
-                            if (isFocused) {
-                                return Theme.surfaceContainerHighest;
-                            } else {
-                                return mouseArea.containsMouse ? Qt.rgba(Theme.surfaceContainerHighest.r, Theme.surfaceContainerHighest.g, Theme.surfaceContainerHighest.b, 0.7) : "transparent";
-                            }
+                            if (isFocused)
+                                return Theme.withAlpha(root.focusedColor, root.focusedOpacity / 100)
+                            const unfocusedOp = root.unfocusedOpacity / 100
+                            if (mouseArea.containsMouse)
+                                return Theme.withAlpha(root.unfocusedColor, Math.max(unfocusedOp, 0.1))
+                            return Theme.withAlpha(root.unfocusedColor, unfocusedOp)
                         }
 
                         // App icon
@@ -1092,7 +1162,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             size: root.appIconSize
                             name: "sports_esports"
-                            color: Theme.widgetTextColor
+                            color: root.getTextColor(isFocused)
                             visible: {
                                 const moddedId = Paths.moddedAppId(appId);
                                 return moddedId.toLowerCase().includes("steam_app");
@@ -1175,7 +1245,7 @@ Item {
                                 text: useDashSplit ? prefixText : windowTitle
                                 width: useDashSplit ? Math.max(0, parent.width - suffixWidth) : parent.width
                                 font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                color: Theme.widgetTextColor
+                                color: root.getTextColor(isFocused)
                                 maximumLineCount: 1
                                 wrapMode: Text.NoWrap
                                 elide: useDashSplit ? Text.ElideRight : Text.ElideMiddle
@@ -1185,7 +1255,7 @@ Item {
                                 visible: useDashSplit
                                 text: suffixText
                                 font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                color: Theme.widgetTextColor
+                                color: root.getTextColor(isFocused)
                                 maximumLineCount: 1
                             }
                         }
@@ -1511,13 +1581,17 @@ Item {
                         width: root.isVertical ? root.barThickness : delegateItem.visualWidth
                         height: parent.height
                         anchors.centerIn: parent
-                        radius: Theme.cornerRadius
+                        topLeftRadius: root.topLeftRadius
+                        topRightRadius: root.topRightRadius
+                        bottomLeftRadius: root.bottomLeftRadius
+                        bottomRightRadius: root.bottomRightRadius
                         color: {
-                            if (isFocused) {
-                                return Theme.surfaceContainerHighest;
-                            } else {
-                                return mouseArea.containsMouse ? Qt.rgba(Theme.surfaceContainerHighest.r, Theme.surfaceContainerHighest.g, Theme.surfaceContainerHighest.b, 0.7) : "transparent";
-                            }
+                            if (isFocused)
+                                return Theme.withAlpha(root.focusedColor, root.focusedOpacity / 100)
+                            const unfocusedOp = root.unfocusedOpacity / 100
+                            if (mouseArea.containsMouse)
+                                return Theme.withAlpha(root.unfocusedColor, Math.max(unfocusedOp, 0.1))
+                            return Theme.withAlpha(root.unfocusedColor, unfocusedOp)
                         }
 
                         IconImage {
@@ -1563,7 +1637,7 @@ Item {
                             anchors.verticalCenter: parent.verticalCenter
                             size: root.appIconSize
                             name: "sports_esports"
-                            color: Theme.widgetTextColor
+                            color: root.getTextColor(isFocused)
                             visible: {
                                 const moddedId = Paths.moddedAppId(appId);
                                 return moddedId.toLowerCase().includes("steam_app");
@@ -1587,7 +1661,7 @@ Item {
                                 return appName.charAt(0).toUpperCase();
                             }
                             font.pixelSize: 10
-                            color: Theme.widgetTextColor
+                            color: root.getTextColor(isFocused)
                         }
 
                         Rectangle {
@@ -1617,7 +1691,7 @@ Item {
                             visible: !(widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode)
                             text: windowTitle
                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                            color: Theme.widgetTextColor
+                            color: root.getTextColor(isFocused)
                             elide: Text.ElideRight
                             maximumLineCount: 1
                         }
