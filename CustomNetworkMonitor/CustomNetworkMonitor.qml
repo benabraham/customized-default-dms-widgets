@@ -51,7 +51,7 @@ BasePill {
 
                 DankIcon {
                     name: "network_check"
-                    size: Theme.barIconSize(root.barThickness)
+                    size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)
                     color: Theme.widgetTextColor
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
@@ -99,7 +99,7 @@ BasePill {
 
                 DankIcon {
                     name: "network_check"
-                    size: Theme.barIconSize(root.barThickness)
+                    size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)
                     color: Theme.widgetTextColor
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -139,13 +139,6 @@ BasePill {
                         }
 
                         width: Math.max(rxBaseline.width, paintedWidth)
-
-                        Behavior on width {
-                            NumberAnimation {
-                                duration: 120
-                                easing.type: Easing.OutCubic
-                            }
-                        }
                     }
                 }
 
@@ -184,13 +177,6 @@ BasePill {
                         }
 
                         width: Math.max(txBaseline.width, paintedWidth)
-
-                        Behavior on width {
-                            NumberAnimation {
-                                duration: 120
-                                easing.type: Easing.OutCubic
-                            }
-                        }
                     }
                 }
             }

@@ -6,24 +6,24 @@ import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Widgets
 import qs.Common
+import qs.Modules.Plugins
 import qs.Services
 import qs.Widgets
 
-Item {
+BasePill {
     id: root
 
+    enableBackgroundHover: false
+    enableCursor: false
+    section: "left"
+
     property var widgetData: null
-    property var barConfig: null
-    property bool isVertical: axis?.isVertical ?? false
-    property var axis: null
-    property string section: "left"
-    property var parentScreen
     property var hoveredItem: null
     property var topBar: null
-    property real widgetThickness: 30
-    property real barThickness: 48
-    property real barSpacing: 4
     property bool isAutoHideBar: false
+    property Item windowRoot: (Window.window ? Window.window.contentItem : null)
+
+    // ── PluginService settings ──
     property bool stripAppName: PluginService.loadPluginData("CustomRunningApps", "stripAppName", true)
     // Compression bias: UI value -50 to 50, converted to exponent 0.01 to 100
     // Formula: exponent = 100^(bias/50)
@@ -40,6 +40,7 @@ Item {
     property real focusedOpacity: parseFloat(PluginService.loadPluginData("CustomRunningApps", "focusedOpacity", "100"))
     property real unfocusedOpacity: parseFloat(PluginService.loadPluginData("CustomRunningApps", "unfocusedOpacity", "0"))
 
+    // ── Color helpers ──
     function themeColorFromMode(mode) {
         switch (mode) {
         case "primary": return Theme.primary
@@ -70,13 +71,6 @@ Item {
         return luminance > 0.5 ? Theme.onSurface : Theme.widgetTextColor
     }
 
-    // Corner radii based on bar edge (flat on outer edge when enabled)
-    readonly property real cornerRadius: Theme.cornerRadius
-    readonly property real topLeftRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "left") ? 0 : cornerRadius
-    readonly property real topRightRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "right") ? 0 : cornerRadius
-    readonly property real bottomLeftRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "left") ? 0 : cornerRadius
-    readonly property real bottomRightRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "right") ? 0 : cornerRadius
-
     function getTextColor(isFocused) {
         const mode = isFocused ? root.focusedTextColorMode : root.unfocusedTextColorMode
         if (mode === "auto") {
@@ -87,7 +81,14 @@ Item {
         return themeColorFromMode(mode)
     }
 
-    // Configurable sizes and spacing
+    // ── Corner radii based on bar edge (flat on outer edge when enabled) ──
+    readonly property real customCornerRadius: Theme.cornerRadius
+    readonly property real topLeftRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "left") ? 0 : customCornerRadius
+    readonly property real topRightRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "right") ? 0 : customCornerRadius
+    readonly property real bottomLeftRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "left") ? 0 : customCornerRadius
+    readonly property real bottomRightRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "right") ? 0 : customCornerRadius
+
+    // ── Configurable sizes and spacing ──
     property real appIconSize: PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24)
     property string pillSpacingPreset: PluginService.loadPluginData("CustomRunningApps", "pillSpacing", "S")
     property string widgetPaddingPreset: PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M")
@@ -109,10 +110,9 @@ Item {
     readonly property real iconTitleSpacing: spacerValue(iconTitleSpacingPreset)
     readonly property real pillPadding: spacerValue(widgetPaddingPreset)
     readonly property real horizontalPadding: (barConfig?.noBackground ?? false) ? 2 : Theme.spacingM
-    property Item windowRoot: (Window.window ? Window.window.contentItem : null)
 
-    // Smart pill width: available bar width for horizontal layout
-    readonly property real availableBarWidth: isVertical ? 0 : (barBounds.width > 0 ? barBounds.width : (parentScreen?.width ?? 1920))
+    // ── Smart pill width: available bar width for horizontal layout ──
+    readonly property real availableBarWidth: isVerticalOrientation ? 0 : (barBounds.width > 0 ? barBounds.width : (parentScreen?.width ?? 1920))
 
     // Fixed overhead per pill: left padding + icon + right padding + text spacing
     readonly property real pillOverhead: pillPadding + appIconSize + pillPadding + iconTitleSpacing
@@ -162,7 +162,7 @@ Item {
 
     // Auto-compact mode: force icon-only when items can't fit with minimum text
     readonly property bool forceCompactMode: {
-        if (isVertical)
+        if (isVerticalOrientation)
             return false;
         const itemCount = visibleStableIds.length;
         if (itemCount === 0)
@@ -173,6 +173,7 @@ Item {
         return totalMinWidth > availableBarWidth;
     }
 
+    // ── Upstream properties ──
     readonly property real effectiveBarThickness: {
         if (barThickness > 0 && barSpacing > 0) {
             return barThickness + barSpacing;
@@ -199,7 +200,7 @@ Item {
     readonly property real barY: barBounds.y
 
     readonly property real minTooltipY: {
-        if (!parentScreen || !isVertical) {
+        if (!parentScreen || !isVerticalOrientation) {
             return 0;
         }
 
@@ -215,10 +216,157 @@ Item {
     }
 
     property int _desktopEntriesUpdateTrigger: 0
-    property int _appIdSubstitutionsTrigger: 0
     property int _toplevelsUpdateTrigger: 0
+    property int _appIdSubstitutionsTrigger: 0
 
-    // Title debounce cache (lives at root so it survives delegate recreation)
+    readonly property bool _currentWorkspace: widgetData?.runningAppsCurrentWorkspace !== undefined ? widgetData.runningAppsCurrentWorkspace : SettingsData.runningAppsCurrentWorkspace
+    readonly property bool _currentMonitor: widgetData?.runningAppsCurrentMonitor !== undefined ? widgetData.runningAppsCurrentMonitor : SettingsData.runningAppsCurrentMonitor
+    readonly property bool _groupByApp: widgetData?.runningAppsGroupByApp !== undefined ? widgetData.runningAppsGroupByApp : SettingsData.runningAppsGroupByApp
+
+    readonly property var sortedToplevels: {
+        _toplevelsUpdateTrigger;
+        let toplevels = CompositorService.sortedToplevels;
+        if (!toplevels || toplevels.length === 0)
+            return [];
+
+        if (_currentWorkspace)
+            toplevels = CompositorService.filterCurrentWorkspace(toplevels, parentScreen?.name) || [];
+        if (_currentMonitor)
+            toplevels = CompositorService.filterCurrentDisplay(toplevels, parentScreen?.name) || [];
+        return toplevels;
+    }
+
+    Connections {
+        target: CompositorService
+        function onToplevelsChanged() {
+            _toplevelsUpdateTrigger++;
+        }
+    }
+
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() {
+            _desktopEntriesUpdateTrigger++;
+        }
+    }
+
+    Connections {
+        target: SettingsData
+        function onAppIdSubstitutionsChanged() {
+            _appIdSubstitutionsTrigger++;
+        }
+    }
+
+    // ── PluginService reload ──
+    Connections {
+        target: PluginService
+        function onPluginDataChanged(pluginId, key) {
+            if (pluginId === "CustomRunningApps") {
+                if (key === "stripAppName") {
+                    root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true);
+                } else if (key === "compressionBias") {
+                    root.compressionBias = parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"));
+                } else if (key === "titleDebounce") {
+                    root.titleDebounce = parseInt(PluginService.loadPluginData("CustomRunningApps", "titleDebounce", "300"));
+                } else if (key === "debugMode") {
+                    root.debugMode = PluginService.loadPluginData("CustomRunningApps", "debugMode", false);
+                } else if (key === "appIconSize") {
+                    root.appIconSize = PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24);
+                } else if (key === "pillSpacing") {
+                    root.pillSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "pillSpacing", "S");
+                } else if (key === "widgetPadding") {
+                    root.widgetPaddingPreset = PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M");
+                } else if (key === "iconTitleSpacing") {
+                    root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S");
+                } else if (key === "showStackingTabbing") {
+                    root.showStackingTabbing = PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true);
+                } else if (key === "flatOuterEdge") {
+                    root.flatOuterEdge = PluginService.loadPluginData("CustomRunningApps", "flatOuterEdge", false);
+                } else if (key === "focusedColorMode") {
+                    root.focusedColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedColorMode", "surfaceContainerHighest");
+                } else if (key === "unfocusedColorMode") {
+                    root.unfocusedColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedColorMode", "transparent");
+                } else if (key === "focusedOpacity") {
+                    root.focusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "focusedOpacity", "100"));
+                } else if (key === "unfocusedOpacity") {
+                    root.unfocusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "unfocusedOpacity", "0"));
+                } else if (key === "focusedTextColorMode") {
+                    root.focusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedTextColorMode", "auto");
+                } else if (key === "unfocusedTextColorMode") {
+                    root.unfocusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedTextColorMode", "auto");
+                }
+            }
+        }
+    }
+
+    readonly property var groupedWindows: {
+        if (!_groupByApp) {
+            return [];
+        }
+        try {
+            if (!sortedToplevels || sortedToplevels.length === 0) {
+                return [];
+            }
+            const appGroups = new Map();
+            sortedToplevels.forEach((toplevel, index) => {
+                if (!toplevel)
+                    return;
+                const appId = toplevel?.appId || "unknown";
+                if (!appGroups.has(appId)) {
+                    appGroups.set(appId, {
+                        "appId": appId,
+                        "windows": []
+                    });
+                }
+                appGroups.get(appId).windows.push({
+                    "toplevel": toplevel,
+                    "windowId": index,
+                    "windowTitle": toplevel?.title || "(Unnamed)"
+                });
+            });
+            return Array.from(appGroups.values());
+        } catch (e) {
+            return [];
+        }
+    }
+
+    readonly property int windowCount: _groupByApp ? (groupedWindows?.length || 0) : (sortedToplevels?.length || 0)
+    readonly property real iconCellSize: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground) + 6
+
+    readonly property string focusedAppId: {
+        if (!sortedToplevels || sortedToplevels.length === 0)
+            return "";
+        for (let i = 0; i < sortedToplevels.length; i++) {
+            if (sortedToplevels[i].activated)
+                return sortedToplevels[i].appId || "";
+        }
+        return "";
+    }
+
+    // ── Get list of valid stableIds for current visible items ──
+    readonly property var visibleStableIds: {
+        const result = [];
+        const isGrouped = _groupByApp;
+        const items = isGrouped ? groupedWindows : sortedToplevels;
+        if (!items)
+            return result;
+        for (let i = 0; i < items.length; i++) {
+            const item = items[i];
+            if (isGrouped) {
+                result.push(item.appId);
+            } else {
+                result.push(item?.address ?? i.toString());
+            }
+        }
+        return result;
+    }
+
+    readonly property real contentSize: layoutLoader.item ? (isVerticalOrientation ? layoutLoader.item.implicitHeight : layoutLoader.item.implicitWidth) : 0
+    readonly property real calculatedSize: contentSize + horizontalPadding * 2
+
+    visible: windowCount > 0
+
+    // ── Title debounce cache (lives at root so it survives delegate recreation) ──
     // Maps stableId -> { debounced: "visible title", pending: "latest raw title" }
     property var _titleCache: ({})
     property int _titleCacheTrigger: 0
@@ -257,7 +405,7 @@ Item {
         }
     }
 
-    // Niri column/floating indicators
+    // ── Niri column/floating indicators ──
     readonly property bool isNiri: CompositorService.isNiri
 
     // Map niri window ID → full niri window object (with layout, is_floating)
@@ -329,212 +477,7 @@ Item {
         return niriWindowsMap[toplevel.niriWindowId] || null
     }
 
-    readonly property var sortedToplevels: {
-        _toplevelsUpdateTrigger;
-        const toplevels = CompositorService.sortedToplevels;
-        if (!toplevels || toplevels.length === 0)
-            return [];
-
-        if (SettingsData.runningAppsCurrentWorkspace) {
-            return CompositorService.filterCurrentWorkspace(toplevels, parentScreen?.name) || [];
-        }
-        return toplevels;
-    }
-
-    Connections {
-        target: CompositorService
-        function onToplevelsChanged() {
-            _toplevelsUpdateTrigger++;
-        }
-    }
-
-    Connections {
-        target: DesktopEntries
-        function onApplicationsChanged() {
-            _desktopEntriesUpdateTrigger++;
-        }
-    }
-
-    Connections {
-        target: SettingsData
-        function onAppIdSubstitutionsChanged() {
-            _appIdSubstitutionsTrigger++;
-        }
-    }
-
-    Connections {
-        target: PluginService
-        function onPluginDataChanged(pluginId, key) {
-            if (pluginId === "CustomRunningApps") {
-                if (key === "stripAppName") {
-                    root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true);
-                } else if (key === "compressionBias") {
-                    root.compressionBias = parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"));
-                } else if (key === "titleDebounce") {
-                    root.titleDebounce = parseInt(PluginService.loadPluginData("CustomRunningApps", "titleDebounce", "300"));
-                } else if (key === "debugMode") {
-                    root.debugMode = PluginService.loadPluginData("CustomRunningApps", "debugMode", false);
-                } else if (key === "appIconSize") {
-                    root.appIconSize = PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24);
-                } else if (key === "pillSpacing") {
-                    root.pillSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "pillSpacing", "S");
-                } else if (key === "widgetPadding") {
-                    root.widgetPaddingPreset = PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M");
-                } else if (key === "iconTitleSpacing") {
-                    root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S");
-                } else if (key === "showStackingTabbing") {
-                    root.showStackingTabbing = PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true);
-                } else if (key === "flatOuterEdge") {
-                    root.flatOuterEdge = PluginService.loadPluginData("CustomRunningApps", "flatOuterEdge", false);
-                } else if (key === "focusedColorMode") {
-                    root.focusedColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedColorMode", "surfaceContainerHighest");
-                } else if (key === "unfocusedColorMode") {
-                    root.unfocusedColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedColorMode", "transparent");
-                } else if (key === "focusedOpacity") {
-                    root.focusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "focusedOpacity", "100"));
-                } else if (key === "unfocusedOpacity") {
-                    root.unfocusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "unfocusedOpacity", "0"));
-                } else if (key === "focusedTextColorMode") {
-                    root.focusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedTextColorMode", "auto");
-                } else if (key === "unfocusedTextColorMode") {
-                    root.unfocusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedTextColorMode", "auto");
-                }
-            }
-        }
-    }
-    readonly property var groupedWindows: {
-        if (!SettingsData.runningAppsGroupByApp) {
-            return [];
-        }
-        try {
-            if (!sortedToplevels || sortedToplevels.length === 0) {
-                return [];
-            }
-            const appGroups = new Map();
-            sortedToplevels.forEach((toplevel, index) => {
-                if (!toplevel)
-                    return;
-                const appId = toplevel?.appId || "unknown";
-                if (!appGroups.has(appId)) {
-                    appGroups.set(appId, {
-                        "appId": appId,
-                        "windows": []
-                    });
-                }
-                appGroups.get(appId).windows.push({
-                    "toplevel": toplevel,
-                    "windowId": index,
-                    "windowTitle": toplevel?.title || "(Unnamed)"
-                });
-            });
-            return Array.from(appGroups.values());
-        } catch (e) {
-            return [];
-        }
-    }
-    readonly property int windowCount: SettingsData.runningAppsGroupByApp ? (groupedWindows?.length || 0) : (sortedToplevels?.length || 0)
-
-    // Get list of valid stableIds for current visible items
-    readonly property var visibleStableIds: {
-        const result = [];
-        const isGrouped = SettingsData.runningAppsGroupByApp;
-        const items = isGrouped ? groupedWindows : sortedToplevels;
-        if (!items)
-            return result;
-        for (let i = 0; i < items.length; i++) {
-            const item = items[i];
-            if (isGrouped) {
-                result.push(item.appId);
-            } else {
-                result.push(item?.address ?? i.toString());
-            }
-        }
-        return result;
-    }
-    readonly property real contentSize: layoutLoader.item ? (isVertical ? layoutLoader.item.implicitHeight : layoutLoader.item.implicitWidth) : 0
-    readonly property real calculatedSize: contentSize + horizontalPadding * 2
-
-    width: windowCount > 0 ? (isVertical ? barThickness : calculatedSize) : 0
-    height: windowCount > 0 ? (isVertical ? calculatedSize : barThickness) : 0
-    visible: windowCount > 0
-
-    // Debug: root widget background
-    Rectangle {
-        visible: root.debugMode
-        anchors.fill: parent
-        color: "salmon"
-        z: -1
-    }
-
-    Item {
-        id: visualBackground
-        width: root.isVertical ? root.barThickness : root.calculatedSize
-        height: root.isVertical ? root.calculatedSize : root.barThickness
-        anchors.centerIn: parent
-        clip: false
-
-        Rectangle {
-            id: outline
-            anchors.centerIn: parent
-            width: {
-                const borderWidth = (barConfig?.widgetOutlineEnabled ?? false) ? (barConfig?.widgetOutlineThickness ?? 1) : 0;
-                return parent.width + borderWidth * 2;
-            }
-            height: {
-                const borderWidth = (barConfig?.widgetOutlineEnabled ?? false) ? (barConfig?.widgetOutlineThickness ?? 1) : 0;
-                return parent.height + borderWidth * 2;
-            }
-            radius: (barConfig?.noBackground ?? false) ? 0 : Theme.cornerRadius
-            color: "transparent"
-            border.width: {
-                if (barConfig?.widgetOutlineEnabled ?? false) {
-                    return barConfig?.widgetOutlineThickness ?? 1;
-                }
-                return 0;
-            }
-            border.color: {
-                if (!(barConfig?.widgetOutlineEnabled ?? false)) {
-                    return "transparent";
-                }
-                const colorOption = barConfig?.widgetOutlineColor || "primary";
-                const opacity = barConfig?.widgetOutlineOpacity ?? 1.0;
-                switch (colorOption) {
-                case "surfaceText":
-                    return Theme.withAlpha(Theme.surfaceText, opacity);
-                case "secondary":
-                    return Theme.withAlpha(Theme.secondary, opacity);
-                case "primary":
-                    return Theme.withAlpha(Theme.primary, opacity);
-                default:
-                    return Theme.withAlpha(Theme.primary, opacity);
-                }
-            }
-        }
-
-        Rectangle {
-            id: background
-            anchors.fill: parent
-            radius: (barConfig?.noBackground ?? false) ? 0 : Theme.cornerRadius
-            color: {
-                if (windowCount === 0) {
-                    return "transparent";
-                }
-
-                if ((barConfig?.noBackground ?? false)) {
-                    return "transparent";
-                }
-
-                const baseColor = Theme.widgetBaseBackgroundColor;
-                const transparency = (root.barConfig && root.barConfig.widgetTransparency !== undefined) ? root.barConfig.widgetTransparency : 1.0;
-                if (Theme.widgetBackgroundHasAlpha) {
-                    return Qt.rgba(baseColor.r, baseColor.g, baseColor.b, baseColor.a * transparency);
-                }
-                return Theme.withAlpha(baseColor, transparency);
-            }
-        }
-    }
-
-    // Smart pill width: centralized width management
+    // ── Smart pill width: centralized width management ──
     QtObject {
         id: widthManager
 
@@ -615,7 +558,7 @@ Item {
             });
         }
 
-        // Iterative redistribution: short items keep natural, long items e by same ratio
+        // Iterative redistribution: short items keep natural, long items shrink by same ratio
         function redistributeNonLinear(widths, available, exponent, filteredIndices) {
             const indices = filteredIndices || Object.keys(widths);
             const result = {};
@@ -712,7 +655,7 @@ Item {
         onTriggered: widthManager.doRecalculate()
     }
 
-    // Smart app name stripping: handles versions, instances, and partial names
+    // ── Smart app name stripping ──
     function stripAppNameFromTitle(title, appName) {
         if (!title || !appName)
             return title;
@@ -741,9 +684,7 @@ Item {
         return title;
     }
 
-    // Smart text shortening with regex: "(.+) - .{2,}$"
-    // If match: shorten prefix before " - "
-    // If no match: shorten whole string
+    // ── Smart text shortening with regex ──
     function shortenTextSmart(text, maxWidth, metrics) {
         if (!text || maxWidth <= 0)
             return text;
@@ -793,25 +734,42 @@ Item {
         return text.substring(0, low);
     }
 
-    MouseArea {
-        anchors.fill: parent
-        hoverEnabled: true
-        acceptedButtons: Qt.NoButton
+    // ── Scroll switching ──
+    property real scrollAccumulator: 0
+    property real touchpadThreshold: 500
 
-        property real scrollAccumulator: 0
-        property real touchpadThreshold: 500
+    onWheel: function (wheelEvent) {
+        wheelEvent.accepted = true;
+        const deltaY = wheelEvent.angleDelta.y;
+        const isMouseWheel = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0;
 
-        onWheel: wheel => {
-            const deltaY = wheel.angleDelta.y;
-            const isMouseWheel = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0;
+        const windows = root.sortedToplevels;
+        if (windows.length < 2)
+            return;
 
-            const windows = root.sortedToplevels;
-            if (windows.length < 2) {
-                return;
+        if (isMouseWheel) {
+            let currentIndex = -1;
+            for (var i = 0; i < windows.length; i++) {
+                if (windows[i].activated) {
+                    currentIndex = i;
+                    break;
+                }
             }
 
-            if (isMouseWheel) {
-                // Direct mouse wheel action
+            let nextIndex;
+            if (deltaY < 0) {
+                nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, windows.length - 1);
+            } else {
+                nextIndex = currentIndex === -1 ? windows.length - 1 : Math.max(currentIndex - 1, 0);
+            }
+
+            const nextWindow = windows[nextIndex];
+            if (nextWindow)
+                nextWindow.activate();
+        } else {
+            scrollAccumulator += deltaY;
+
+            if (Math.abs(scrollAccumulator) >= touchpadThreshold) {
                 let currentIndex = -1;
                 for (var i = 0; i < windows.length; i++) {
                     if (windows[i].activated) {
@@ -821,71 +779,36 @@ Item {
                 }
 
                 let nextIndex;
-                if (deltaY < 0) {
-                    if (currentIndex === -1) {
-                        nextIndex = 0;
-                    } else {
-                        nextIndex = Math.min(currentIndex + 1, windows.length - 1);
-                    }
+                if (scrollAccumulator < 0) {
+                    nextIndex = currentIndex === -1 ? 0 : Math.min(currentIndex + 1, windows.length - 1);
                 } else {
-                    if (currentIndex === -1) {
-                        nextIndex = windows.length - 1;
-                    } else {
-                        nextIndex = Math.max(currentIndex - 1, 0);
-                    }
+                    nextIndex = currentIndex === -1 ? windows.length - 1 : Math.max(currentIndex - 1, 0);
                 }
 
                 const nextWindow = windows[nextIndex];
-                if (nextWindow) {
+                if (nextWindow)
                     nextWindow.activate();
-                }
-            } else {
-                // Touchpad - accumulate small deltas
-                scrollAccumulator += deltaY;
 
-                if (Math.abs(scrollAccumulator) >= touchpadThreshold) {
-                    let currentIndex = -1;
-                    for (var i = 0; i < windows.length; i++) {
-                        if (windows[i].activated) {
-                            currentIndex = i;
-                            break;
-                        }
-                    }
-
-                    let nextIndex;
-                    if (scrollAccumulator < 0) {
-                        if (currentIndex === -1) {
-                            nextIndex = 0;
-                        } else {
-                            nextIndex = Math.min(currentIndex + 1, windows.length - 1);
-                        }
-                    } else {
-                        if (currentIndex === -1) {
-                            nextIndex = windows.length - 1;
-                        } else {
-                            nextIndex = Math.max(currentIndex - 1, 0);
-                        }
-                    }
-
-                    const nextWindow = windows[nextIndex];
-                    if (nextWindow) {
-                        nextWindow.activate();
-                    }
-
-                    scrollAccumulator = 0;
-                }
+                scrollAccumulator = 0;
             }
-
-            wheel.accepted = true;
         }
     }
 
-    Loader {
-        id: layoutLoader
-        anchors.centerIn: parent
-        sourceComponent: root.isVertical ? columnLayout : rowLayout
+    // ── Content (upstream BasePill pattern) ──
+    content: Component {
+        Item {
+            implicitWidth: layoutLoader.item ? layoutLoader.item.implicitWidth : 0
+            implicitHeight: layoutLoader.item ? layoutLoader.item.implicitHeight : 0
+
+            Loader {
+                id: layoutLoader
+                anchors.centerIn: parent
+                sourceComponent: root.isVerticalOrientation ? columnLayout : rowLayout
+            }
+        }
     }
 
+    // ── Row layout (horizontal bar) ──
     Component {
         id: rowLayout
         Item {
@@ -899,486 +822,490 @@ Item {
                 Repeater {
                     id: windowRepeater
                     model: ScriptModel {
-                        values: SettingsData.runningAppsGroupByApp ? groupedWindows : sortedToplevels
-                        objectProp: SettingsData.runningAppsGroupByApp ? "appId" : "address"
+                        values: _groupByApp ? groupedWindows : sortedToplevels
+                        objectProp: _groupByApp ? "appId" : "address"
                     }
 
                     delegate: Item {
-                    id: delegateItem
+                        id: delegateItem
 
-                    property bool isGrouped: SettingsData.runningAppsGroupByApp
-                    property var groupData: isGrouped ? modelData : null
-                    property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
-                    property bool isFocused: toplevelData ? toplevelData.activated : false
-                    property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
-                    // Raw title from compositor (updates immediately, may flash briefly to defaults like "bash")
-                    readonly property string rawTitle: {
-                        const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
-                        if (!root.stripAppName)
-                            return title;
-                        root._desktopEntriesUpdateTrigger;
-                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
-                        const appName = appId ? Paths.getAppName(appId, desktopEntry) : "";
-                        return root.stripAppNameFromTitle(title, appName) || title;
-                    }
-                    // Debounced title via root-level cache (survives delegate recreation)
-                    readonly property string windowTitle: {
-                        root._titleCacheTrigger
-                        return root.getCachedTitle(stableId) || rawTitle
-                    }
-                    onRawTitleChanged: root.requestTitleUpdate(stableId, rawTitle)
-                    property var toplevelObject: toplevelData
-                    property int windowCount: isGrouped ? modelData.windows.length : 1
-                    property string tooltipText: {
-                        root._desktopEntriesUpdateTrigger;
-                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
-                        const appName = appId ? Paths.getAppName(appId, desktopEntry) : "Unknown";
-
-                        // DEBUG: show width info (only when debugMode enabled)
-                        const debugInfo = root.debugMode ? " [" + root.debugWidthInfo + " nat:" + Math.round(naturalTextWidth) + " eff:" + Math.round(effectiveTextWidth) + " max:" + Math.round(maxTextWidth) + "]" : "";
-
-                        if (isGrouped && windowCount > 1) {
-                            return appName + " (" + windowCount + " windows)" + debugInfo;
+                        property bool isGrouped: root._groupByApp
+                        property var groupData: isGrouped ? modelData : null
+                        property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
+                        property bool isFocused: isGrouped ? (root.focusedAppId === appId) : (toplevelData ? toplevelData.activated : false)
+                        property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
+                        // Raw title from compositor (updates immediately, may flash briefly)
+                        readonly property string rawTitle: {
+                            const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
+                            if (!root.stripAppName)
+                                return title;
+                            root._desktopEntriesUpdateTrigger;
+                            const moddedId = Paths.moddedAppId(appId);
+                            const desktopEntry = moddedId ? DesktopEntries.heuristicLookup(moddedId) : null;
+                            const appName = appId ? Paths.getAppName(appId, desktopEntry) : "";
+                            return root.stripAppNameFromTitle(title, appName) || title;
                         }
-                        return appName + (windowTitle ? " • " + windowTitle : "") + debugInfo;
-                    }
-
-                    // Stable identifier for width management (index is not stable when items are removed)
-                    readonly property string stableId: isGrouped ? appId : (modelData?.address ?? index.toString())
-
-                    // Niri window data (layout, floating status)
-                    readonly property var niriWindow: root.getNiriWindow(toplevelData)
-                    readonly property int columnIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[0] ?? -1
-                    readonly property int rowIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[1] ?? -1
-                    readonly property bool isFloating: niriWindow?.is_floating ?? false
-
-                    // Column grouping
-                    readonly property string columnKey: niriWindow ?
-                        `${niriWindow.workspace_id}-${columnIndex}` : ''
-                    readonly property var columnGroup: columnKey ? root.columnGroups[columnKey] : null
-                    readonly property bool columnHasMultiple: (columnGroup?.windows?.length ?? 0) > 1
-                    readonly property bool isTabbed: columnGroup?.isTabbed ?? false
-
-                    // Position within column (sorted by row index)
-                    readonly property int positionInColumn: {
-                        if (!columnGroup || !niriWindow) return -1
-                        const sorted = columnGroup.windows.slice().sort((a, b) =>
-                            (a.layout?.pos_in_scrolling_layout?.[1] || 0) -
-                            (b.layout?.pos_in_scrolling_layout?.[1] || 0)
-                        )
-                        return sorted.findIndex(w => w.id === niriWindow.id)
-                    }
-                    readonly property bool isFirstInColumn: positionInColumn === 0
-                    readonly property bool isLastInColumn: columnGroup ?
-                        positionInColumn === columnGroup.windows.length - 1 : false
-
-                    // Frame visibility (skip when grouping by app is enabled)
-                    readonly property bool showColumnFrame: root.isNiri && !SettingsData.runningAppsGroupByApp && columnHasMultiple
-                    readonly property bool showLeftLine: showColumnFrame && isFirstInColumn
-                    readonly property bool showRightLine: showColumnFrame && isLastInColumn
-                    readonly property bool showTopLine: showColumnFrame
-                    readonly property bool showBottomLine: showColumnFrame
-                    readonly property color frameColor: isTabbed ? Theme.warning : Theme.primary
-
-                    // Smart pill width: natural text width (unconstrained)
-                    readonly property real naturalTextWidth: hiddenText.implicitWidth
-
-                    // Get constrained width from manager (-1 = no constraint)
-                    readonly property real maxTextWidth: {
-                        root._widthUpdateTrigger;  // reactive dependency
-                        const w = widthManager.constrainedWidths[stableId];
-                        return w !== undefined ? w : -1;
-                    }
-
-                    // Effective text width for layout
-                    readonly property real effectiveTextWidth: maxTextWidth >= 0 ? Math.min(naturalTextWidth, maxTextWidth) : naturalTextWidth
-
-                    // Display text (shortened if needed) - use elide instead of smart shorten to avoid binding loop
-                    readonly property string displayText: windowTitle
-
-                    // Smart dash-split for titles like "Document - Firefox"
-                    // Matches: hyphen-minus (-), en-dash (–), em-dash (—), minus sign (−)
-                    readonly property int dashIndex: {
-                        const dashes = [' - ', ' – ', ' — ', ' − '];
-                        let maxIdx = -1;
-                        for (const d of dashes) {
-                            const idx = windowTitle.lastIndexOf(d);
-                            if (idx > maxIdx)
-                                maxIdx = idx;
+                        // Debounced title via root-level cache (survives delegate recreation)
+                        readonly property string windowTitle: {
+                            root._titleCacheTrigger
+                            return root.getCachedTitle(stableId) || rawTitle
                         }
-                        return maxIdx;
-                    }
-                    readonly property int dashLength: {
-                        if (dashIndex < 0)
-                            return 0;
-                        const dashes = [' - ', ' – ', ' — ', ' − '];
-                        for (const d of dashes) {
-                            if (windowTitle.indexOf(d, dashIndex) === dashIndex)
-                                return d.length;
-                        }
-                        return 3;
-                    }
-                    readonly property bool hasDashPattern: dashIndex > 0 && windowTitle.length - dashIndex - dashLength >= 2
-                    readonly property string prefixText: hasDashPattern ? windowTitle.substring(0, dashIndex) : windowTitle
-                    readonly property string suffixText: hasDashPattern ? windowTitle.substring(dashIndex) : ""
+                        onRawTitleChanged: root.requestTitleUpdate(stableId, rawTitle)
+                        property var toplevelObject: toplevelData
+                        property int windowCount: isGrouped ? modelData.windows.length : 1
+                        property string tooltipText: {
+                            root._desktopEntriesUpdateTrigger;
+                            const moddedId = Paths.moddedAppId(appId);
+                            const desktopEntry = moddedId ? DesktopEntries.heuristicLookup(moddedId) : null;
+                            const appName = appId ? Paths.getAppName(appId, desktopEntry) : "Unknown";
 
-                    // Register/unregister with manager
-                    Component.onCompleted: {
-                        root.requestTitleUpdate(stableId, rawTitle)
-                        widthManager.register(stableId, naturalTextWidth)
-                    }
-                    Component.onDestruction: widthManager.unregister(stableId)
-                    onNaturalTextWidthChanged: widthManager.register(stableId, naturalTextWidth)
+                            // DEBUG: show width info (only when debugMode enabled)
+                            const debugInfo = root.debugMode ? " [" + root.debugWidthInfo + " nat:" + Math.round(naturalTextWidth) + " eff:" + Math.round(effectiveTextWidth) + " max:" + Math.round(maxTextWidth) + "]" : "";
 
-                    // Hidden text for measuring natural width (using StyledText to match display)
-                    StyledText {
-                        id: hiddenText
-                        visible: false
-                        text: windowTitle
-                        font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                    }
-
-                    // TextMetrics for smart shortening
-                    TextMetrics {
-                        id: textMetrics
-                        font: hiddenText.font
-                    }
-
-                    // Suffix width for dash-split calculation
-                    readonly property real suffixWidth: {
-                        if (!hasDashPattern)
-                            return 0;
-                        textMetrics.text = suffixText;
-                        return textMetrics.width;
-                    }
-
-                    // Only split if there's room for prefix (at least 50% of suffix width for prefix)
-                    readonly property bool useDashSplit: hasDashPattern && effectiveTextWidth >= suffixWidth * 1.5
-
-                    readonly property real visualWidth: {
-                        const compact = root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode);
-
-                        // Text width: 0 if compact, otherwise effective (constrained) text width + spacing
-                        const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + root.pillPadding : 0);
-                        return root.pillPadding + root.appIconSize + root.iconTitleSpacing + textWidth;
-                    }
-
-                    width: visualWidth
-                    height: root.barThickness
-
-                    // Debug: pill background
-                    Rectangle {
-                        visible: root.debugMode
-                        anchors.fill: parent
-                        color: "navy"
-                        z: -1
-                    }
-                    Rectangle {
-                        visible: root.debugMode && isFocused
-                        anchors.fill: parent
-                        color: "yellow"
-                        z: 0
-                    }
-
-                    // Debug: pill width info
-                    Rectangle {
-                        visible: root.debugMode && !root.forceCompactMode
-                        anchors.left: parent.left
-                        anchors.bottom: parent.bottom
-                        color: "black"
-                        width: pillDebugText.width + 6
-                        height: pillDebugText.height + 2
-                        z: 9999
-
-                        Text {
-                            id: pillDebugText
-                            anchors.centerIn: parent
-                            text: {
-                                const nat = Math.round(naturalTextWidth)
-                                const eff = Math.round(effectiveTextWidth)
-                                if (nat === eff)
-                                    return nat
-                                const pct = Math.round((eff / nat) * 100)
-                                const mode = useDashSplit ? ' SPLIT' : (hasDashPattern ? ' END (NO SPACE FOR SPLIT)' : ' END')
-                                return nat + '→' + eff + ' (' + pct + '%)' + mode
+                            if (isGrouped && windowCount > 1) {
+                                return appName + " (" + windowCount + " windows)" + debugInfo;
                             }
-                            font.pixelSize: 9
-                            color: "white"
-                        }
-                    }
-
-                    Rectangle {
-                        id: visualContent
-                        width: delegateItem.visualWidth
-                        height: parent.height
-                        anchors.centerIn: parent
-                        topLeftRadius: root.topLeftRadius
-                        topRightRadius: root.topRightRadius
-                        bottomLeftRadius: root.bottomLeftRadius
-                        bottomRightRadius: root.bottomRightRadius
-                        color: {
-                            if (isFocused)
-                                return Theme.withAlpha(root.focusedColor, root.focusedOpacity / 100)
-                            const unfocusedOp = root.unfocusedOpacity / 100
-                            if (mouseArea.containsMouse)
-                                return Theme.withAlpha(root.unfocusedColor, Math.max(unfocusedOp, 0.1))
-                            return Theme.withAlpha(root.unfocusedColor, unfocusedOp)
+                            return appName + (windowTitle ? " • " + windowTitle : "") + debugInfo;
                         }
 
-                        // App icon
-                        IconImage {
-                            id: iconImg
-                            anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: root.appIconSize
-                            height: root.appIconSize
-                            source: {
-                                root._desktopEntriesUpdateTrigger;
-                                root._appIdSubstitutionsTrigger;
-                                if (!appId)
-                                    return "";
-                                const moddedId = Paths.moddedAppId(appId);
-                                const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
-                                return Paths.getAppIcon(moddedId, desktopEntry);
-                            }
-                            smooth: true
-                            mipmap: true
-                            asynchronous: true
-                            visible: status === Image.Ready
-                            layer.enabled: appId === "org.quickshell"
-                            layer.smooth: true
-                            layer.mipmap: true
-                            layer.effect: MultiEffect {
-                                saturation: 0
-                                colorization: 1
-                                colorizationColor: Theme.primary
-                            }
+                        // Stable identifier for width management
+                        readonly property string stableId: isGrouped ? appId : (modelData?.address ?? index.toString())
+
+                        // Niri window data (layout, floating status)
+                        readonly property var niriWindow: root.getNiriWindow(toplevelData)
+                        readonly property int columnIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[0] ?? -1
+                        readonly property int rowIndex: niriWindow?.layout?.pos_in_scrolling_layout?.[1] ?? -1
+                        readonly property bool isFloating: niriWindow?.is_floating ?? false
+
+                        // Column grouping
+                        readonly property string columnKey: niriWindow ?
+                            `${niriWindow.workspace_id}-${columnIndex}` : ''
+                        readonly property var columnGroup: columnKey ? root.columnGroups[columnKey] : null
+                        readonly property bool columnHasMultiple: (columnGroup?.windows?.length ?? 0) > 1
+                        readonly property bool isTabbed: columnGroup?.isTabbed ?? false
+
+                        // Position within column (sorted by row index)
+                        readonly property int positionInColumn: {
+                            if (!columnGroup || !niriWindow) return -1
+                            const sorted = columnGroup.windows.slice().sort((a, b) =>
+                                (a.layout?.pos_in_scrolling_layout?.[1] || 0) -
+                                (b.layout?.pos_in_scrolling_layout?.[1] || 0)
+                            )
+                            return sorted.findIndex(w => w.id === niriWindow.id)
+                        }
+                        readonly property bool isFirstInColumn: positionInColumn === 0
+                        readonly property bool isLastInColumn: columnGroup ?
+                            positionInColumn === columnGroup.windows.length - 1 : false
+
+                        // Frame visibility (skip when grouping by app is enabled)
+                        readonly property bool showColumnFrame: root.isNiri && !root._groupByApp && columnHasMultiple
+                        readonly property bool showLeftLine: showColumnFrame && isFirstInColumn
+                        readonly property bool showRightLine: showColumnFrame && isLastInColumn
+                        readonly property bool showTopLine: showColumnFrame
+                        readonly property bool showBottomLine: showColumnFrame
+                        readonly property color frameColor: isTabbed ? Theme.warning : Theme.primary
+
+                        // Smart pill width: natural text width (unconstrained)
+                        readonly property real naturalTextWidth: hiddenText.implicitWidth
+
+                        // Get constrained width from manager (-1 = no constraint)
+                        readonly property real maxTextWidth: {
+                            root._widthUpdateTrigger;  // reactive dependency
+                            const w = widthManager.constrainedWidths[stableId];
+                            return w !== undefined ? w : -1;
                         }
 
-                        DankIcon {
-                            anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
-                            anchors.verticalCenter: parent.verticalCenter
-                            size: root.appIconSize
-                            name: "sports_esports"
-                            color: root.getTextColor(isFocused)
-                            visible: {
-                                const moddedId = Paths.moddedAppId(appId);
-                                return moddedId.toLowerCase().includes("steam_app");
+                        // Effective text width for layout
+                        readonly property real effectiveTextWidth: maxTextWidth >= 0 ? Math.min(naturalTextWidth, maxTextWidth) : naturalTextWidth
+
+                        // Display text
+                        readonly property string displayText: windowTitle
+
+                        // Smart dash-split for titles like "Document - Firefox"
+                        readonly property int dashIndex: {
+                            const dashes = [' - ', ' – ', ' — ', ' − '];
+                            let maxIdx = -1;
+                            for (const d of dashes) {
+                                const idx = windowTitle.lastIndexOf(d);
+                                if (idx > maxIdx)
+                                    maxIdx = idx;
                             }
+                            return maxIdx;
+                        }
+                        readonly property int dashLength: {
+                            if (dashIndex < 0)
+                                return 0;
+                            const dashes = [' - ', ' – ', ' — ', ' − '];
+                            for (const d of dashes) {
+                                if (windowTitle.indexOf(d, dashIndex) === dashIndex)
+                                    return d.length;
+                            }
+                            return 3;
+                        }
+                        readonly property bool hasDashPattern: dashIndex > 0 && windowTitle.length - dashIndex - dashLength >= 2
+                        readonly property string prefixText: hasDashPattern ? windowTitle.substring(0, dashIndex) : windowTitle
+                        readonly property string suffixText: hasDashPattern ? windowTitle.substring(dashIndex) : ""
+
+                        // Register/unregister with manager
+                        Component.onCompleted: {
+                            root.requestTitleUpdate(stableId, rawTitle)
+                            widthManager.register(stableId, naturalTextWidth)
+                        }
+                        Component.onDestruction: widthManager.unregister(stableId)
+                        onNaturalTextWidthChanged: widthManager.register(stableId, naturalTextWidth)
+
+                        // Hidden text for measuring natural width (using StyledText to match display)
+                        StyledText {
+                            id: hiddenText
+                            visible: false
+                            text: windowTitle
+                            font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                         }
 
-                        // Fallback icon if no icon found
-                        Rectangle {
-                            anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: root.appIconSize
-                            height: root.appIconSize
-                            radius: 4
-                            color: Theme.secondary
-                            visible: {
-                                const moddedId = Paths.moddedAppId(appId);
-                                const isSteamApp = moddedId.toLowerCase().includes("steam_app");
-                                return !iconImg.visible && !isSteamApp;
-                            }
-
-                            Text {
-                                anchors.centerIn: parent
-                                text: {
-                                    root._desktopEntriesUpdateTrigger;
-                                    if (!appId)
-                                        return "?";
-
-                                    const desktopEntry = DesktopEntries.heuristicLookup(appId);
-                                    const appName = Paths.getAppName(appId, desktopEntry);
-                                    return appName.charAt(0).toUpperCase();
-                                }
-                                font.pixelSize: 12
-                                font.weight: Font.Bold
-                                color: Theme.onSecondary
-                            }
+                        // TextMetrics for smart shortening
+                        TextMetrics {
+                            id: textMetrics
+                            font: hiddenText.font
                         }
 
-                        Rectangle {
-                            anchors.right: parent.right
-                            anchors.bottom: parent.bottom
-                            anchors.rightMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? -2 : 2
-                            anchors.bottomMargin: -2
-                            width: 14
-                            height: 14
-                            radius: 7
-                            color: Theme.primary
-                            visible: isGrouped && windowCount > 1
-                            z: 10
-
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: windowCount > 9 ? "9+" : windowCount
-                                font.pixelSize: 9
-                                color: Theme.surface
-                            }
+                        // Suffix width for dash-split calculation
+                        readonly property real suffixWidth: {
+                            if (!hasDashPattern)
+                                return 0;
+                            textMetrics.text = suffixText;
+                            return textMetrics.width;
                         }
 
-                        // Debug: icon overlay
+                        // Only split if there's room for prefix
+                        readonly property bool useDashSplit: hasDashPattern && effectiveTextWidth >= suffixWidth * 1.5
+
+                        readonly property real visualWidth: {
+                            const compact = root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode);
+                            // Text width: 0 if compact, otherwise effective (constrained) text width + spacing
+                            const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + root.pillPadding : 0);
+                            return root.pillPadding + root.appIconSize + root.iconTitleSpacing + textWidth;
+                        }
+
+                        width: visualWidth
+                        height: root.barThickness
+
+                        // Debug: pill background
                         Rectangle {
                             visible: root.debugMode
-                            anchors.fill: iconImg
-                            color: "deepskyblue"
-                            opacity: 0.5
+                            anchors.fill: parent
+                            color: "navy"
+                            z: -1
+                        }
+                        Rectangle {
+                            visible: root.debugMode && isFocused
+                            anchors.fill: parent
+                            color: "yellow"
                             z: 0
                         }
 
-                        // Window title text (only visible in expanded mode)
-                        Row {
-                            id: titleRow
-                            anchors.left: iconImg.right
-                            anchors.leftMargin: root.iconTitleSpacing
-                            anchors.verticalCenter: parent.verticalCenter
-                            visible: !(root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode))
-                            clip: true
-                            width: effectiveTextWidth
-
-                            StyledText {
-                                id: prefixTitleText
-                                text: useDashSplit ? prefixText : windowTitle
-                                width: useDashSplit ? Math.max(0, parent.width - suffixWidth) : parent.width
-                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                color: root.getTextColor(isFocused)
-                                maximumLineCount: 1
-                                wrapMode: Text.NoWrap
-                                elide: useDashSplit ? Text.ElideRight : Text.ElideMiddle
-                            }
-                            StyledText {
-                                id: suffixTitleText
-                                visible: useDashSplit
-                                text: suffixText
-                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                color: root.getTextColor(isFocused)
-                                maximumLineCount: 1
-                            }
-                        }
-
-                        // Floating indicator - line on top
+                        // Debug: pill width info
                         Rectangle {
-                            visible: root.showStackingTabbing && delegateItem.isFloating
-                            anchors.top: parent.top
+                            visible: root.debugMode && !root.forceCompactMode
                             anchors.left: parent.left
-                            anchors.right: parent.right
-                            anchors.topMargin: -2
-                            height: 2
-                            radius: 1
-                            color: Theme.warning
-                        }
-                    }
+                            anchors.bottom: parent.bottom
+                            color: "black"
+                            width: pillDebugText.width + 6
+                            height: pillDebugText.height + 2
+                            z: 9999
 
-                    MouseArea {
-                        id: mouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
-                        onClicked: mouse => {
-                            if (mouse.button === Qt.LeftButton) {
-                                if (isGrouped && windowCount > 1) {
-                                    let currentIndex = -1;
-                                    for (var i = 0; i < groupData.windows.length; i++) {
-                                        if (groupData.windows[i].toplevel.activated) {
-                                            currentIndex = i;
-                                            break;
+                            Text {
+                                id: pillDebugText
+                                anchors.centerIn: parent
+                                text: {
+                                    const nat = Math.round(naturalTextWidth)
+                                    const eff = Math.round(effectiveTextWidth)
+                                    if (nat === eff)
+                                        return nat
+                                    const pct = Math.round((eff / nat) * 100)
+                                    const mode = useDashSplit ? ' SPLIT' : (hasDashPattern ? ' END (NO SPACE FOR SPLIT)' : ' END')
+                                    return nat + '→' + eff + ' (' + pct + '%)' + mode
+                                }
+                                font.pixelSize: 9
+                                color: "white"
+                            }
+                        }
+
+                        Rectangle {
+                            id: visualContent
+                            width: delegateItem.visualWidth
+                            height: parent.height
+                            anchors.centerIn: parent
+                            topLeftRadius: root.topLeftRadius
+                            topRightRadius: root.topRightRadius
+                            bottomLeftRadius: root.bottomLeftRadius
+                            bottomRightRadius: root.bottomRightRadius
+                            color: {
+                                if (isFocused)
+                                    return Theme.withAlpha(root.focusedColor, root.focusedOpacity / 100)
+                                const unfocusedOp = root.unfocusedOpacity / 100
+                                if (mouseArea.containsMouse)
+                                    return Theme.withAlpha(root.unfocusedColor, Math.max(unfocusedOp, 0.1))
+                                return Theme.withAlpha(root.unfocusedColor, unfocusedOp)
+                            }
+
+                            // App icon
+                            IconImage {
+                                id: iconImg
+                                anchors.left: parent.left
+                                anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: root.appIconSize
+                                height: root.appIconSize
+                                source: {
+                                    root._desktopEntriesUpdateTrigger;
+                                    root._appIdSubstitutionsTrigger;
+                                    if (!appId)
+                                        return "";
+                                    const moddedId = Paths.moddedAppId(appId);
+                                    const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
+                                    return Paths.getAppIcon(moddedId, desktopEntry);
+                                }
+                                smooth: true
+                                mipmap: true
+                                asynchronous: true
+                                visible: status === Image.Ready
+                                layer.enabled: appId === "org.quickshell"
+                                layer.smooth: true
+                                layer.mipmap: true
+                                layer.effect: MultiEffect {
+                                    saturation: 0
+                                    colorization: 1
+                                    colorizationColor: Theme.primary
+                                }
+                            }
+
+                            DankIcon {
+                                anchors.left: parent.left
+                                anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
+                                anchors.verticalCenter: parent.verticalCenter
+                                size: root.appIconSize
+                                name: "sports_esports"
+                                color: root.getTextColor(isFocused)
+                                visible: !iconImg.visible && Paths.isSteamApp(appId)
+                            }
+
+                            // Fallback icon if no icon found
+                            Rectangle {
+                                anchors.left: parent.left
+                                anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: root.appIconSize
+                                height: root.appIconSize
+                                radius: 4
+                                color: Theme.secondary
+                                visible: !iconImg.visible && !Paths.isSteamApp(appId)
+
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: {
+                                        root._desktopEntriesUpdateTrigger;
+                                        if (!appId)
+                                            return "?";
+
+                                        const moddedId = Paths.moddedAppId(appId);
+                                        const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
+                                        const appName = Paths.getAppName(appId, desktopEntry);
+                                        return appName.charAt(0).toUpperCase();
+                                    }
+                                    font.pixelSize: 12
+                                    font.weight: Font.Bold
+                                    color: Theme.onSecondary
+                                }
+                            }
+
+                            Rectangle {
+                                anchors.right: parent.right
+                                anchors.bottom: parent.bottom
+                                anchors.rightMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? -2 : 2
+                                anchors.bottomMargin: -2
+                                width: 14
+                                height: 14
+                                radius: 7
+                                color: Theme.primary
+                                visible: isGrouped && windowCount > 1
+                                z: 10
+
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    text: windowCount > 9 ? "9+" : windowCount
+                                    font.pixelSize: 9
+                                    color: Theme.surface
+                                }
+                            }
+
+                            // Debug: icon overlay
+                            Rectangle {
+                                visible: root.debugMode
+                                anchors.fill: iconImg
+                                color: "deepskyblue"
+                                opacity: 0.5
+                                z: 0
+                            }
+
+                            // Window title text (only visible in expanded mode)
+                            Row {
+                                id: titleRow
+                                anchors.left: iconImg.right
+                                anchors.leftMargin: root.iconTitleSpacing
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: !(root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode))
+                                clip: true
+                                width: effectiveTextWidth
+
+                                StyledText {
+                                    id: prefixTitleText
+                                    text: useDashSplit ? prefixText : windowTitle
+                                    width: useDashSplit ? Math.max(0, parent.width - suffixWidth) : parent.width
+                                    font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
+                                    color: root.getTextColor(isFocused)
+                                    maximumLineCount: 1
+                                    wrapMode: Text.NoWrap
+                                    elide: useDashSplit ? Text.ElideRight : Text.ElideMiddle
+                                }
+                                StyledText {
+                                    id: suffixTitleText
+                                    visible: useDashSplit
+                                    text: suffixText
+                                    font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
+                                    color: root.getTextColor(isFocused)
+                                    maximumLineCount: 1
+                                }
+                            }
+
+                            // Floating indicator - line on top
+                            Rectangle {
+                                visible: root.showStackingTabbing && delegateItem.isFloating
+                                anchors.top: parent.top
+                                anchors.left: parent.left
+                                anchors.right: parent.right
+                                anchors.topMargin: -2
+                                height: 2
+                                radius: 1
+                                color: Theme.warning
+                            }
+
+                            DankRipple {
+                                id: itemRipple
+                                cornerRadius: Theme.cornerRadius
+                            }
+                        }
+
+                        MouseArea {
+                            id: mouseArea
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                            onPressed: mouse => {
+                                const pos = mapToItem(visualContent, mouse.x, mouse.y);
+                                itemRipple.trigger(pos.x, pos.y);
+                            }
+                            onClicked: mouse => {
+                                if (mouse.button === Qt.LeftButton) {
+                                    if (isGrouped && windowCount > 1) {
+                                        let currentIndex = -1;
+                                        for (var i = 0; i < groupData.windows.length; i++) {
+                                            if (groupData.windows[i].toplevel.activated) {
+                                                currentIndex = i;
+                                                break;
+                                            }
+                                        }
+                                        const nextIndex = (currentIndex + 1) % groupData.windows.length;
+                                        groupData.windows[nextIndex].toplevel.activate();
+                                    } else if (toplevelObject) {
+                                        toplevelObject.activate();
+                                    }
+                                } else if (mouse.button === Qt.RightButton) {
+                                    if (tooltipLoader.item) {
+                                        tooltipLoader.item.hide();
+                                    }
+                                    tooltipLoader.active = false;
+
+                                    windowContextMenuLoader.active = true;
+                                    if (windowContextMenuLoader.item) {
+                                        windowContextMenuLoader.item.currentWindow = toplevelObject;
+                                        // Pass bar context
+                                        windowContextMenuLoader.item.triggerBarConfig = root.barConfig;
+                                        windowContextMenuLoader.item.triggerBarPosition = root.axis.edge === "left" ? 2 : (root.axis.edge === "right" ? 3 : (root.axis.edge === "top" ? 0 : 1));
+                                        windowContextMenuLoader.item.triggerBarThickness = root.barThickness;
+                                        windowContextMenuLoader.item.triggerBarSpacing = root.barSpacing;
+                                        if (root.isVerticalOrientation) {
+                                            const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, delegateItem.height / 2);
+                                            const screenX = root.parentScreen ? root.parentScreen.x : 0;
+                                            const screenY = root.parentScreen ? root.parentScreen.y : 0;
+                                            const relativeY = globalPos.y - screenY;
+                                            // Add minTooltipY offset to account for top bar
+                                            const adjustedY = relativeY + root.minTooltipY;
+                                            const xPos = root.axis?.edge === "left" ? (root.barThickness + root.barSpacing + Theme.spacingXS) : (root.parentScreen.width - root.barThickness - root.barSpacing - Theme.spacingXS);
+                                            windowContextMenuLoader.item.showAt(xPos, adjustedY, true, root.axis?.edge);
+                                        } else {
+                                            const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, 0);
+                                            const screenX = root.parentScreen ? root.parentScreen.x : 0;
+                                            const relativeX = globalPos.x - screenX;
+                                            const screenHeight = root.parentScreen ? root.parentScreen.height : Screen.height;
+                                            const isBottom = root.axis?.edge === "bottom";
+                                            const yPos = isBottom
+                                                ? (screenHeight - root.barThickness - root.barSpacing - 32 - Theme.spacingXS)
+                                                : (root.barThickness + root.barSpacing + Theme.spacingXS);
+                                            windowContextMenuLoader.item.showAt(relativeX, yPos, false, root.axis?.edge);
                                         }
                                     }
-                                    const nextIndex = (currentIndex + 1) % groupData.windows.length;
-                                    groupData.windows[nextIndex].toplevel.activate();
-                                } else if (toplevelObject) {
-                                    toplevelObject.activate();
+                                } else if (mouse.button === Qt.MiddleButton) {
+                                    if (toplevelObject) {
+                                        if (typeof toplevelObject.close === "function") {
+                                            toplevelObject.close();
+                                        }
+                                    }
                                 }
-                            } else if (mouse.button === Qt.RightButton) {
+                            }
+                            onEntered: {
+                                root.hoveredItem = delegateItem;
+                                tooltipLoader.active = true;
                                 if (tooltipLoader.item) {
-                                    tooltipLoader.item.hide();
-                                }
-                                tooltipLoader.active = false;
-
-                                windowContextMenuLoader.active = true;
-                                if (windowContextMenuLoader.item) {
-                                    windowContextMenuLoader.item.currentWindow = toplevelObject;
-                                    // Pass bar context
-                                    windowContextMenuLoader.item.triggerBarConfig = root.barConfig;
-                                    windowContextMenuLoader.item.triggerBarPosition = root.axis.edge === "left" ? 2 : (root.axis.edge === "right" ? 3 : (root.axis.edge === "top" ? 0 : 1));
-                                    windowContextMenuLoader.item.triggerBarThickness = root.barThickness;
-                                    windowContextMenuLoader.item.triggerBarSpacing = root.barSpacing;
-                                    if (root.isVertical) {
+                                    if (root.isVerticalOrientation) {
                                         const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, delegateItem.height / 2);
                                         const screenX = root.parentScreen ? root.parentScreen.x : 0;
                                         const screenY = root.parentScreen ? root.parentScreen.y : 0;
                                         const relativeY = globalPos.y - screenY;
-                                        // Add minTooltipY offset to account for top bar
+                                        const tooltipX = root.axis?.edge === "left" ? (root.barThickness + root.barSpacing + Theme.spacingXS) : (root.parentScreen.width - root.barThickness - root.barSpacing - Theme.spacingXS);
+                                        const isLeft = root.axis?.edge === "left";
                                         const adjustedY = relativeY + root.minTooltipY;
-                                        const xPos = root.axis?.edge === "left" ? (root.barThickness + root.barSpacing + Theme.spacingXS) : (root.parentScreen.width - root.barThickness - root.barSpacing - Theme.spacingXS);
-                                        windowContextMenuLoader.item.showAt(xPos, adjustedY, true, root.axis?.edge);
+                                        const finalX = screenX + tooltipX;
+                                        tooltipLoader.item.show(delegateItem.tooltipText, finalX, adjustedY, root.parentScreen, isLeft, !isLeft);
                                     } else {
-                                        const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, 0);
-                                        const screenX = root.parentScreen ? root.parentScreen.x : 0;
-                                        const relativeX = globalPos.x - screenX;
+                                        const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, delegateItem.height);
+                                        const screenHeight = root.parentScreen ? root.parentScreen.height : Screen.height;
                                         const isBottom = root.axis?.edge === "bottom";
-                                        const yPos = isBottom
-                                            ? (root.parentScreen.height - root.barThickness - root.barSpacing + 7)
-                                            : (root.barThickness + root.barSpacing - 7);
-                                        windowContextMenuLoader.item.showAt(relativeX, yPos, false, isBottom ? "bottom" : "top");
-                                    }
-                                }
-                            } else if (mouse.button === Qt.MiddleButton) {
-                                if (toplevelObject) {
-                                    if (typeof toplevelObject.close === "function") {
-                                        toplevelObject.close();
+                                        const tooltipY = isBottom ? (screenHeight - root.barThickness - root.barSpacing - Theme.spacingXS - 35) : (root.barThickness + root.barSpacing + Theme.spacingXS);
+                                        tooltipLoader.item.show(delegateItem.tooltipText, globalPos.x, tooltipY, root.parentScreen, false, false);
                                     }
                                 }
                             }
-                        }
-                        onEntered: {
-                            root.hoveredItem = delegateItem;
-                            // tooltipLoader.active = true;  // disabled
-                            if (tooltipLoader.item) {
-                                if (root.isVertical) {
-                                    const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, delegateItem.height / 2);
-                                    const screenX = root.parentScreen ? root.parentScreen.x : 0;
-                                    const screenY = root.parentScreen ? root.parentScreen.y : 0;
-                                    const relativeY = globalPos.y - screenY;
-                                    const tooltipX = root.axis?.edge === "left" ? (Theme.barHeight + (barConfig?.spacing ?? 4) + Theme.spacingXS) : (root.parentScreen.width - Theme.barHeight - (barConfig?.spacing ?? 4) - Theme.spacingXS);
-                                    const isLeft = root.axis?.edge === "left";
-                                    const adjustedY = relativeY + root.minTooltipY;
-                                    const finalX = screenX + tooltipX;
-                                    tooltipLoader.item.show(delegateItem.tooltipText, finalX, adjustedY, root.parentScreen, isLeft, !isLeft);
-                                } else {
-                                    const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, delegateItem.height);
-                                    const screenHeight = root.parentScreen ? root.parentScreen.height : Screen.height;
-                                    const isBottom = root.axis?.edge === "bottom";
-                                    const tooltipY = isBottom ? (screenHeight - Theme.barHeight - (barConfig?.spacing ?? 4) - Theme.spacingXS - 35) : (Theme.barHeight + (barConfig?.spacing ?? 4) + Theme.spacingXS);
-                                    tooltipLoader.item.show(delegateItem.tooltipText, globalPos.x, tooltipY, root.parentScreen, false, false);
-                                }
-                            }
-                        }
-                        onExited: {
-                            if (root.hoveredItem === delegateItem) {
-                                root.hoveredItem = null;
-                                if (tooltipLoader.item) {
-                                    tooltipLoader.item.hide();
-                                }
+                            onExited: {
+                                if (root.hoveredItem === delegateItem) {
+                                    root.hoveredItem = null;
+                                    if (tooltipLoader.item) {
+                                        tooltipLoader.item.hide();
+                                    }
 
-                                tooltipLoader.active = false;
+                                    tooltipLoader.active = false;
+                                }
                             }
                         }
                     }
                 }
-            }
             }
 
             // Frame overlay - renders on top of all pills
             Repeater {
                 model: {
                     // Build list of column groups that need frames
-                    if (!root.showStackingTabbing || !root.isNiri || SettingsData.runningAppsGroupByApp) return []
+                    if (!root.showStackingTabbing || !root.isNiri || root._groupByApp) return []
                     const groups = root.columnGroups
                     const result = []
                     for (const key in groups) {
@@ -1412,7 +1339,7 @@ Item {
                     readonly property var frameBounds: {
                         root._widthUpdateTrigger  // react to width changes
                         const toplevels = root.sortedToplevels
-                        const items = SettingsData.runningAppsGroupByApp ? root.groupedWindows : toplevels
+                        const items = root._groupByApp ? root.groupedWindows : toplevels
                         if (!items || items.length === 0) return { x: 0, width: 0 }
 
                         let startX = 0
@@ -1468,6 +1395,7 @@ Item {
         }
     }
 
+    // ── Column layout (vertical bar) ──
     Component {
         id: columnLayout
         Column {
@@ -1476,24 +1404,25 @@ Item {
             Repeater {
                 id: windowRepeater
                 model: ScriptModel {
-                    values: SettingsData.runningAppsGroupByApp ? groupedWindows : sortedToplevels
-                    objectProp: SettingsData.runningAppsGroupByApp ? "appId" : "address"
+                    values: _groupByApp ? groupedWindows : sortedToplevels
+                    objectProp: _groupByApp ? "appId" : "address"
                 }
 
                 delegate: Item {
                     id: delegateItem
 
-                    property bool isGrouped: SettingsData.runningAppsGroupByApp
+                    property bool isGrouped: root._groupByApp
                     property var groupData: isGrouped ? modelData : null
                     property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
-                    property bool isFocused: toplevelData ? toplevelData.activated : false
+                    property bool isFocused: isGrouped ? (root.focusedAppId === appId) : (toplevelData ? toplevelData.activated : false)
                     property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
                     readonly property string rawTitle: {
                         const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
                         if (!root.stripAppName)
                             return title;
                         root._desktopEntriesUpdateTrigger;
-                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
+                        const moddedId = Paths.moddedAppId(appId);
+                        const desktopEntry = moddedId ? DesktopEntries.heuristicLookup(moddedId) : null;
                         const appName = appId ? Paths.getAppName(appId, desktopEntry) : "";
                         return root.stripAppNameFromTitle(title, appName) || title;
                     }
@@ -1515,7 +1444,8 @@ Item {
                     property int windowCount: isGrouped ? modelData.windows.length : 1
                     property string tooltipText: {
                         root._desktopEntriesUpdateTrigger;
-                        const desktopEntry = appId ? DesktopEntries.heuristicLookup(appId) : null;
+                        const moddedId = Paths.moddedAppId(appId);
+                        const desktopEntry = moddedId ? DesktopEntries.heuristicLookup(moddedId) : null;
                         const appName = appId ? Paths.getAppName(appId, desktopEntry) : "Unknown";
 
                         if (isGrouped && windowCount > 1) {
@@ -1523,7 +1453,7 @@ Item {
                         }
                         return appName + (windowTitle ? " • " + windowTitle : "");
                     }
-                    readonly property real visualWidth: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? root.appIconSize : (root.pillPadding + root.appIconSize + root.iconTitleSpacing + (titleText.implicitWidth > 0 ? titleText.implicitWidth + root.pillPadding : 120))
+                    readonly property real visualWidth: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? root.iconCellSize : (root.iconCellSize + Theme.spacingXS + 120)
 
                     // Niri window data (layout, floating status)
                     readonly property var niriWindow: root.getNiriWindow(toplevelData)
@@ -1552,7 +1482,7 @@ Item {
                         positionInColumn === columnGroup.windows.length - 1 : false
 
                     // Frame visibility (skip when grouping by app is enabled)
-                    readonly property bool showColumnFrame: root.isNiri && !SettingsData.runningAppsGroupByApp && columnHasMultiple
+                    readonly property bool showColumnFrame: root.isNiri && !root._groupByApp && columnHasMultiple
                     readonly property bool showTopLine: showColumnFrame && isFirstInColumn
                     readonly property bool showBottomLine: showColumnFrame && isLastInColumn
                     readonly property bool showLeftLine: showColumnFrame
@@ -1560,7 +1490,7 @@ Item {
                     readonly property color frameColor: isTabbed ? Theme.warning : Theme.primary
 
                     width: root.barThickness
-                    height: root.appIconSize
+                    height: root.iconCellSize
 
                     // Debug: pill background
                     Rectangle {
@@ -1578,8 +1508,8 @@ Item {
 
                     Rectangle {
                         id: visualContent
-                        width: root.isVertical ? root.barThickness : delegateItem.visualWidth
-                        height: parent.height
+                        width: delegateItem.visualWidth
+                        height: root.iconCellSize
                         anchors.centerIn: parent
                         topLeftRadius: root.topLeftRadius
                         topRightRadius: root.topRightRadius
@@ -1596,10 +1526,11 @@ Item {
 
                         IconImage {
                             id: iconImg
-                            anchors.horizontalCenter: parent.horizontalCenter
+                            anchors.left: parent.left
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)) / 2) : Theme.spacingXS
                             anchors.verticalCenter: parent.verticalCenter
-                            width: root.appIconSize
-                            height: root.appIconSize
+                            width: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)
+                            height: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)
                             source: {
                                 root._desktopEntriesUpdateTrigger;
                                 root._appIdSubstitutionsTrigger;
@@ -1607,7 +1538,7 @@ Item {
                                     return "";
                                 const moddedId = Paths.moddedAppId(appId);
                                 const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
-                                return Paths.getAppIcon(moddedId, desktopEntry);
+                                return Paths.getAppIcon(appId, desktopEntry);
                             }
                             smooth: true
                             mipmap: true
@@ -1633,30 +1564,24 @@ Item {
 
                         DankIcon {
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
+                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)) / 2) : Theme.spacingXS
                             anchors.verticalCenter: parent.verticalCenter
-                            size: root.appIconSize
+                            size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)
                             name: "sports_esports"
                             color: root.getTextColor(isFocused)
-                            visible: {
-                                const moddedId = Paths.moddedAppId(appId);
-                                return moddedId.toLowerCase().includes("steam_app");
-                            }
+                            visible: !iconImg.visible && Paths.isSteamApp(appId)
                         }
 
                         Text {
                             anchors.centerIn: parent
-                            visible: {
-                                const moddedId = Paths.moddedAppId(appId);
-                                const isSteamApp = moddedId.toLowerCase().includes("steam_app");
-                                return !iconImg.visible && !isSteamApp;
-                            }
+                            visible: !iconImg.visible && !Paths.isSteamApp(appId)
                             text: {
                                 root._desktopEntriesUpdateTrigger;
                                 if (!appId)
                                     return "?";
 
-                                const desktopEntry = DesktopEntries.heuristicLookup(appId);
+                                const moddedId = Paths.moddedAppId(appId);
+                                const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
                                 const appName = Paths.getAppName(appId, desktopEntry);
                                 return appName.charAt(0).toUpperCase();
                             }
@@ -1685,8 +1610,11 @@ Item {
                         }
 
                         StyledText {
+                            id: titleText
                             anchors.left: iconImg.right
                             anchors.leftMargin: Theme.spacingXS
+                            anchors.right: parent.right
+                            anchors.rightMargin: Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
                             visible: !(widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode)
                             text: windowTitle
@@ -1706,6 +1634,11 @@ Item {
                             width: 2
                             radius: 1
                             color: Theme.warning
+                        }
+
+                        DankRipple {
+                            id: itemRipple
+                            cornerRadius: Theme.cornerRadius
                         }
                     }
 
@@ -1766,7 +1699,11 @@ Item {
                         anchors.fill: parent
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+                        onPressed: mouse => {
+                            const pos = mapToItem(visualContent, mouse.x, mouse.y);
+                            itemRipple.trigger(pos.x, pos.y);
+                        }
                         onClicked: mouse => {
                             if (mouse.button === Qt.LeftButton) {
                                 if (isGrouped && windowCount > 1) {
@@ -1796,7 +1733,7 @@ Item {
                                     windowContextMenuLoader.item.triggerBarPosition = root.axis.edge === "left" ? 2 : (root.axis.edge === "right" ? 3 : (root.axis.edge === "top" ? 0 : 1));
                                     windowContextMenuLoader.item.triggerBarThickness = root.barThickness;
                                     windowContextMenuLoader.item.triggerBarSpacing = root.barSpacing;
-                                    if (root.isVertical) {
+                                    if (root.isVerticalOrientation) {
                                         const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, delegateItem.height / 2);
                                         const screenX = root.parentScreen ? root.parentScreen.x : 0;
                                         const screenY = root.parentScreen ? root.parentScreen.y : 0;
@@ -1809,20 +1746,25 @@ Item {
                                         const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, 0);
                                         const screenX = root.parentScreen ? root.parentScreen.x : 0;
                                         const relativeX = globalPos.x - screenX;
+                                        const screenHeight = root.parentScreen ? root.parentScreen.height : Screen.height;
                                         const isBottom = root.axis?.edge === "bottom";
-                                        const yPos = isBottom
-                                            ? (root.parentScreen.height - root.barThickness - root.barSpacing + 7)
-                                            : (root.barThickness + root.barSpacing - 7);
-                                        windowContextMenuLoader.item.showAt(relativeX, yPos, false, isBottom ? "bottom" : "top");
+                                        const yPos = isBottom ? (screenHeight - root.barThickness - root.barSpacing - 32 - Theme.spacingXS) : (root.barThickness + root.barSpacing + Theme.spacingXS);
+                                        windowContextMenuLoader.item.showAt(relativeX, yPos, false, root.axis?.edge);
+                                    }
+                                }
+                            } else if (mouse.button === Qt.MiddleButton) {
+                                if (toplevelObject) {
+                                    if (typeof toplevelObject.close === "function") {
+                                        toplevelObject.close();
                                     }
                                 }
                             }
                         }
                         onEntered: {
                             root.hoveredItem = delegateItem;
-                            // tooltipLoader.active = true;  // disabled
+                            tooltipLoader.active = true;
                             if (tooltipLoader.item) {
-                                if (root.isVertical) {
+                                if (root.isVerticalOrientation) {
                                     const globalPos = delegateItem.mapToGlobal(delegateItem.width / 2, delegateItem.height / 2);
                                     const screenX = root.parentScreen ? root.parentScreen.x : 0;
                                     const screenY = root.parentScreen ? root.parentScreen.y : 0;
@@ -1857,7 +1799,7 @@ Item {
         }
     }
 
-    // DEBUG: visible width info (click to copy)
+    // ── DEBUG: visible width info (click to copy) ──
     Rectangle {
         id: debugRect
         visible: root.debugMode
@@ -1903,6 +1845,7 @@ Item {
         }
     }
 
+    // ── Tooltip ──
     Loader {
         id: tooltipLoader
 
@@ -1911,6 +1854,7 @@ Item {
         sourceComponent: DankTooltip {}
     }
 
+    // ── Context menu ──
     Loader {
         id: windowContextMenuLoader
         active: false
@@ -1958,12 +1902,20 @@ Item {
                 edge = barEdge ?? "top";
                 isVisible = true;
                 visible = true;
+
+                if (screen) {
+                    TrayMenuManager.registerMenu(screen.name, contextMenuWindow);
+                }
             }
 
             function close() {
                 isVisible = false;
                 visible = false;
                 windowContextMenuLoader.active = false;
+
+                if (screen) {
+                    TrayMenuManager.unregisterMenu(screen.name);
+                }
             }
 
             implicitWidth: 100
@@ -1980,6 +1932,19 @@ Item {
                 left: true
                 right: true
                 bottom: true
+            }
+
+            Component.onDestruction: {
+                if (screen) {
+                    TrayMenuManager.unregisterMenu(screen.name);
+                }
+            }
+
+            Connections {
+                target: PopoutManager
+                function onPopoutOpening() {
+                    contextMenuWindow.close();
+                }
             }
 
             MouseArea {
@@ -2022,7 +1987,7 @@ Item {
                 Rectangle {
                     anchors.fill: parent
                     radius: parent.radius
-                    color: closeMouseArea.containsMouse ? Qt.rgba(Theme.primary.r, Theme.primary.g, Theme.primary.b, 0.08) : "transparent"
+                    color: closeMouseArea.containsMouse ? Theme.widgetBaseHoverColor : "transparent"
                 }
 
                 StyledText {

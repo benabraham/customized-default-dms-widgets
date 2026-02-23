@@ -4,8 +4,8 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-01-20
-**Base commit:** `f2be6cfeb` (workspaces: fix occupied color override)
+**Last synced:** 2026-02-23
+**Base commit:** `912e3bdf` (dms-greeter: Enable greetd via dms greeter install all-in-one cmd)
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
 ## CustomFocusedApp
@@ -69,15 +69,13 @@ Changes:
 
 ## CustomSystemTrayBar
 
-System tray with custom icon ordering.
+System tray with custom icon sizes, spacing, and hover colors. Uses upstream drag-and-drop reordering.
 
 Changes:
-- **Sorting feature**: Regex-based icon ordering via plugin settings
-  - Configure `trayIconOrder` array with `{pattern, order}` rules
-  - Matches against id, title, tooltipTitle
-  - Lower order = appears first
-- Unmatched items default to order 0
-- Uses `PluginService.loadPluginData("SortedSystemTray", "trayIconOrder", [])`
+- **Custom icon size**: Configurable via `PluginService.loadPluginData("SortedSystemTray", "iconSize", 24)`
+- **Custom icon spacing**: Configurable via `PluginService.loadPluginData("SortedSystemTray", "iconSpacing", "M")` (presets: 0, XS, S, M, L, XL)
+- **Custom hover color**: `Theme.primaryHover` instead of default `Theme.widgetBaseHoverColor`
+- **Drag-and-drop reordering**: Uses upstream's drag-and-drop with spacing-aware slot calculations
 
 ## CustomWorkspaceSwitcher
 

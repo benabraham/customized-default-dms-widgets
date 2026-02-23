@@ -103,9 +103,9 @@ BasePill {
             let newVolume = currentVolume
             if (isMouseWheelY) {
                 if (deltaY > 0) {
-                    newVolume = Math.min(100, currentVolume + 5)
+                    newVolume = Math.min(100, currentVolume + SettingsData.audioWheelScrollAmount)
                 } else if (deltaY < 0) {
-                    newVolume = Math.max(0, currentVolume - 5)
+                    newVolume = Math.max(0, currentVolume - SettingsData.audioWheelScrollAmount)
                 }
             } else {
                 scrollAccumulatorY += deltaY
@@ -177,6 +177,9 @@ BasePill {
                     MouseArea {
                         anchors.fill: parent
                         cursorShape: Qt.PointingHandCursor
+                        onPressed: mouse => {
+                            root.triggerRipple(this, mouse.x, mouse.y)
+                        }
                         onClicked: {
                             if (root.popoutTarget && root.popoutTarget.setTriggerPosition) {
                                 const globalPos = parent.mapToItem(null, 0, 0);
@@ -335,7 +338,8 @@ BasePill {
                             anchors.fill: parent
                             enabled: root.playerAvailable
                             cursorShape: Qt.PointingHandCursor
-                            onPressed: {
+                            onPressed: mouse => {
+                                root.triggerRipple(this, mouse.x, mouse.y)
                                 if (root.popoutTarget && root.popoutTarget.setTriggerPosition) {
                                     const globalPos = mapToItem(null, 0, 0);
                                     const currentScreen = root.parentScreen || Screen;

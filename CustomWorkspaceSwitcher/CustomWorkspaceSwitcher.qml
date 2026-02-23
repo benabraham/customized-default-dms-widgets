@@ -6,6 +6,7 @@ import Quickshell.Widgets
 import Quickshell.Hyprland
 import Quickshell.I3
 import qs.Common
+import qs.Modules.Plugins
 import qs.Services
 import qs.Widgets
 
@@ -14,9 +15,8 @@ Item {
 
     property bool isVertical: axis?.isVertical ?? false
     property var axis: null
-    property string screenName: parentScreen?.name ?? ""
-    property real widgetThickness: 30
-    property real widgetHeight: widgetThickness
+    property string screenName: ""
+    property real widgetHeight: 30
     property real barThickness: 48
     property var barConfig: null
     property var hyprlandOverviewLoader: null
@@ -26,18 +26,32 @@ Item {
         return CompositorService.filterCurrentWorkspace(CompositorService.sortedToplevels, screenName);
     }
 
-    readonly property bool useExtWorkspace: DMSService.forceExtWorkspace || (!CompositorService.isNiri && !CompositorService.isHyprland && !CompositorService.isDwl && !CompositorService.isSway && !CompositorService.isScroll && ExtWorkspaceService.extWorkspaceAvailable)
+    readonly property string effectiveScreenName: {
+        if (!SettingsData.workspaceFollowFocus)
+            return root.screenName;
+
+        switch (CompositorService.compositor) {
+        case "niri":
+            return NiriService.currentOutput || root.screenName;
+        case "hyprland":
+            return Hyprland.focusedWorkspace?.monitor?.name || root.screenName;
+        case "dwl":
+            return DwlService.activeOutput || root.screenName;
+        case "sway":
+        case "scroll":
+        case "miracle":
+            const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
+            return focusedWs?.monitor?.name || root.screenName;
+        default:
+            return root.screenName;
+        }
+    }
+
+    readonly property bool useExtWorkspace: DMSService.forceExtWorkspace || (!CompositorService.isNiri && !CompositorService.isHyprland && !CompositorService.isDwl && !CompositorService.isSway && !CompositorService.isScroll && !CompositorService.isMiracle && ExtWorkspaceService.extWorkspaceAvailable)
 
     Connections {
         target: DesktopEntries
         function onApplicationsChanged() {
-            _desktopEntriesUpdateTrigger++;
-        }
-    }
-
-    Connections {
-        target: SettingsData
-        function onAppIdSubstitutionsChanged() {
             _desktopEntriesUpdateTrigger++;
         }
     }
@@ -56,6 +70,7 @@ Item {
             return activeTags.length > 0 ? activeTags[0] : -1;
         case "sway":
         case "scroll":
+        case "miracle":
             return getSwayActiveWorkspace();
         default:
             return 1;
@@ -86,6 +101,7 @@ Item {
             break;
         case "sway":
         case "scroll":
+        case "miracle":
             baseList = getSwayWorkspaces();
             break;
         default:
@@ -103,12 +119,23 @@ Item {
                 }
             ];
 
+        function mapWorkspace(ws) {
+            return {
+                "num": ws.number,
+                "name": ws.name,
+                "focused": ws.focused,
+                "active": ws.active,
+                "urgent": ws.urgent,
+                "monitor": ws.monitor
+            };
+        }
+
         if (!root.screenName || SettingsData.workspaceFollowFocus) {
-            return workspaces.slice().sort((a, b) => a.num - b.num);
+            return workspaces.slice().sort((a, b) => a.num - b.num).map(mapWorkspace);
         }
 
         const monitorWorkspaces = workspaces.filter(ws => ws.monitor?.name === root.screenName);
-        return monitorWorkspaces.length > 0 ? monitorWorkspaces.sort((a, b) => a.num - b.num) : [
+        return monitorWorkspaces.length > 0 ? monitorWorkspaces.sort((a, b) => a.num - b.num).map(mapWorkspace) : [
             {
                 "num": 1
             }
@@ -188,15 +215,22 @@ Item {
 
         let targetWorkspaceId;
         if (CompositorService.isNiri) {
-            const wsNumber = typeof ws === "number" ? ws : -1;
-            if (wsNumber <= 0) {
-                return [];
+            if (!ws || typeof ws !== "object") {
+                const wsNumber = typeof ws === "number" ? ws : -1;
+                if (wsNumber <= 0) {
+                    return [];
+                }
+                const workspace = NiriService.allWorkspaces.find(w => w.idx + 1 === wsNumber && w.output === root.effectiveScreenName);
+                if (!workspace) {
+                    return [];
+                }
+                targetWorkspaceId = workspace.id;
+            } else {
+                if (ws.id === undefined || ws.id === -1 || ws.idx === -1) {
+                    return [];
+                }
+                targetWorkspaceId = ws.id;
             }
-            const workspace = NiriService.allWorkspaces.find(w => w.idx + 1 === wsNumber && w.output === root.screenName);
-            if (!workspace) {
-                return [];
-            }
-            targetWorkspaceId = workspace.id;
         } else if (CompositorService.isHyprland) {
             targetWorkspaceId = ws.id !== undefined ? ws.id : ws;
         } else if (CompositorService.isDwl) {
@@ -204,7 +238,7 @@ Item {
                 return [];
             }
             targetWorkspaceId = ws.tag;
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             targetWorkspaceId = ws.num !== undefined ? ws.num : ws;
         } else {
             return [];
@@ -216,11 +250,11 @@ Item {
         let isActiveWs = false;
         if (CompositorService.isNiri) {
             isActiveWs = NiriService.allWorkspaces.some(ws => ws.id === targetWorkspaceId && ws.is_active);
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
             isActiveWs = focusedWs ? (focusedWs.num === targetWorkspaceId) : false;
         } else if (CompositorService.isDwl) {
-            const output = DwlService.getOutputState(root.screenName);
+            const output = DwlService.getOutputState(root.effectiveScreenName);
             if (output && output.tags) {
                 const tag = output.tags.find(t => t.tag === targetWorkspaceId);
                 isActiveWs = tag ? (tag.state === 1) : false;
@@ -237,7 +271,7 @@ Item {
             let winWs = null;
             if (CompositorService.isNiri) {
                 winWs = w.workspace_id;
-            } else if (CompositorService.isSway || CompositorService.isScroll) {
+            } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                 winWs = w.workspace?.num;
             } else {
                 const hyprlandToplevels = Array.from(Hyprland.toplevels?.values || []);
@@ -250,20 +284,20 @@ Item {
             }
 
             const keyBase = (w.app_id || w.appId || w.class || w.windowClass || "unknown");
-            const key = `${keyBase}_${i}`;  // Patched: never group
+            // Custom: never group icons - each window gets its own entry
+            const key = `${keyBase}_${i}`;
 
             if (!byApp[key]) {
-                const moddedId = Paths.moddedAppId(keyBase);
-                const isSteamApp = moddedId.toLowerCase().includes("steam_app");
                 const isQuickshell = keyBase === "org.quickshell";
+                const isSteamApp = Paths.isSteamApp(keyBase);
+                const moddedId = Paths.moddedAppId(keyBase);
                 const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
-                // Try to get steam icon first, fall back to regular icon lookup
-                const icon = Paths.getAppIcon(moddedId, desktopEntry);
+                const icon = Paths.getAppIcon(keyBase, desktopEntry);
                 byApp[key] = {
                     "type": "icon",
                     "icon": icon,
-                    "isSteamApp": isSteamApp,
                     "isQuickshell": isQuickshell,
+                    "isSteamApp": isSteamApp,
                     "active": !!((w.activated || w.is_focused) || (CompositorService.isNiri && w.is_focused)),
                     "count": 1,
                     "windowId": w.address || w.id,
@@ -290,6 +324,12 @@ Item {
                 "active": false,
                 "hidden": true
             };
+        } else if (CompositorService.isNiri) {
+            placeholder = {
+                "id": -1,
+                "idx": -1,
+                "name": ""
+            };
         } else if (CompositorService.isHyprland) {
             placeholder = {
                 "id": -1,
@@ -299,7 +339,7 @@ Item {
             placeholder = {
                 "tag": -1
             };
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             placeholder = {
                 "num": -1
             };
@@ -314,28 +354,52 @@ Item {
 
     function getNiriWorkspaces() {
         if (NiriService.allWorkspaces.length === 0) {
-            return [1, 2];
+            return [
+                {
+                    "id": 1,
+                    "idx": 0,
+                    "name": ""
+                },
+                {
+                    "id": 2,
+                    "idx": 1,
+                    "name": ""
+                }
+            ];
         }
+
+        const fallbackWorkspaces = [
+            {
+                "id": 1,
+                "idx": 0,
+                "name": ""
+            },
+            {
+                "id": 2,
+                "idx": 1,
+                "name": ""
+            }
+        ];
 
         let workspaces;
         if (!root.screenName || SettingsData.workspaceFollowFocus) {
-            workspaces = NiriService.getCurrentOutputWorkspaceNumbers();
+            const currentWorkspaces = NiriService.getCurrentOutputWorkspaces();
+            workspaces = currentWorkspaces.length > 0 ? currentWorkspaces : fallbackWorkspaces;
         } else {
-            const displayWorkspaces = NiriService.allWorkspaces.filter(ws => ws.output === root.screenName).map(ws => ws.idx + 1);
-            workspaces = displayWorkspaces.length > 0 ? displayWorkspaces : [1, 2];
+            const displayWorkspaces = NiriService.allWorkspaces.filter(ws => ws.output === root.screenName);
+            workspaces = displayWorkspaces.length > 0 ? displayWorkspaces : fallbackWorkspaces;
         }
+
+        workspaces = workspaces.slice().sort((a, b) => a.idx - b.idx);
 
         if (!SettingsData.showOccupiedWorkspacesOnly) {
             return workspaces;
         }
 
-        return workspaces.filter(wsNum => {
-            const workspace = NiriService.allWorkspaces.find(w => w.idx + 1 === wsNum && w.output === root.screenName);
-            if (!workspace)
-                return false;
-            if (workspace.is_active)
+        return workspaces.filter(ws => {
+            if (ws.is_active)
                 return true;
-            return NiriService.windows?.some(win => win.workspace_id === workspace.id) ?? false;
+            return NiriService.windows?.some(win => win.workspace_id === ws.id) ?? false;
         });
     }
 
@@ -349,18 +413,17 @@ Item {
         }
 
         const activeWs = NiriService.allWorkspaces.find(ws => ws.output === root.screenName && ws.is_active);
-        return activeWs ? activeWs.idx + 1 : 1;
+        return activeWs ? activeWs.idx : 1;
     }
 
     function getDwlTags() {
-        if (!DwlService.dwlAvailable) {
+        if (!DwlService.dwlAvailable)
             return [];
-        }
 
-        const output = DwlService.getOutputState(root.screenName);
-        if (!output || !output.tags || output.tags.length === 0) {
+        const targetScreen = root.effectiveScreenName;
+        const output = DwlService.getOutputState(targetScreen);
+        if (!output || !output.tags || output.tags.length === 0)
             return [];
-        }
 
         if (SettingsData.dwlShowAllTags) {
             return output.tags.map(tag => ({
@@ -371,7 +434,7 @@ Item {
                     }));
         }
 
-        const visibleTagIndices = DwlService.getVisibleTags(root.screenName);
+        const visibleTagIndices = DwlService.getVisibleTags(targetScreen);
         return visibleTagIndices.map(tagIndex => {
             const tagData = output.tags.find(t => t.tag === tagIndex);
             return {
@@ -384,12 +447,10 @@ Item {
     }
 
     function getDwlActiveTags() {
-        if (!DwlService.dwlAvailable) {
+        if (!DwlService.dwlAvailable)
             return [];
-        }
 
-        const activeTags = DwlService.getActiveTags(root.screenName);
-        return activeTags;
+        return DwlService.getActiveTags(root.effectiveScreenName);
     }
 
     function getExtWorkspaceWorkspaces() {
@@ -460,9 +521,9 @@ Item {
     readonly property real padding: Math.max(Theme.spacingXS, Theme.spacingS * (widgetHeight / 30))
     readonly property real visualWidth: isVertical ? widgetHeight : (workspaceRow.implicitWidth + padding * 2)
     readonly property real visualHeight: isVertical ? (workspaceRow.implicitHeight + padding * 2) : widgetHeight
-    readonly property real appIconSize: Theme.barIconSize(barThickness, -6)
+    readonly property real appIconSize: Theme.barIconSize(barThickness, -6 + SettingsData.workspaceAppIconSizeOffset, root.barConfig?.noBackground)
 
-    // Configurable icon sizes (loaded from plugin settings, rounded to steps of 2)
+    // Custom: configurable icon sizes from PluginService (rounded to steps of 2)
     function roundToStep2(val) { return Math.round(val / 2) * 2 }
     property real wsAppIconNormal: roundToStep2(PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconNormal", 24))
     property real wsAppIconActive: roundToStep2(PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconActive", 36))
@@ -471,14 +532,14 @@ Item {
     property string wsGapPreset: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsGapPreset", "XL")
     property bool flatOuterEdge: PluginService.loadPluginData("CustomWorkspaceSwitcher", "flatOuterEdge", false)
 
-    // Corner radii based on bar edge (flat on outer edge when enabled)
+    // Custom: corner radii based on bar edge (flat on outer edge when enabled)
     readonly property real cornerRadius: Theme.cornerRadius
     readonly property real topLeftRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "left") ? 0 : cornerRadius
     readonly property real topRightRadius: flatOuterEdge && (axis?.edge === "top" || axis?.edge === "right") ? 0 : cornerRadius
     readonly property real bottomLeftRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "left") ? 0 : cornerRadius
     readonly property real bottomRightRadius: flatOuterEdge && (axis?.edge === "bottom" || axis?.edge === "right") ? 0 : cornerRadius
 
-    // Color settings for each state
+    // Custom: color settings for each state
     property string activeColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "activeColorMode", "primary")
     property real activeOpacity: parseFloat(PluginService.loadPluginData("CustomWorkspaceSwitcher", "activeOpacity", "100"))
     property string activeTextColorMode: PluginService.loadPluginData("CustomWorkspaceSwitcher", "activeTextColorMode", "auto")
@@ -518,12 +579,7 @@ Item {
     readonly property color wsOccupiedColor: themeColorFromMode(occupiedColorMode)
     readonly property color wsUrgentColor: themeColorFromMode(urgentColorMode)
 
-    function contrastTextColor(bgColor, bgOpacity) {
-        if (bgOpacity < 0.1)
-            return Theme.widgetTextColor
-        const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
-        return luminance > 0.5 ? Theme.onSurface : Theme.widgetTextColor
-    }
+    // Custom: gap preset conversion
     readonly property real wsGap: {
         switch (wsGapPreset) {
             case "0": return 0
@@ -537,12 +593,12 @@ Item {
     }
     readonly property real wsAppIconSizeDiff: wsAppIconActive - wsAppIconNormal
 
-    // Gap: UI value can be negative, clamped to valid range
+    // Custom: gap for app icon column layout (UI value can be negative, clamped to valid range)
     property real wsAppIconGapRaw: PluginService.loadPluginData("CustomWorkspaceSwitcher", "wsAppIconGap", 0)
     property real wsAppIconGap: Math.max(-wsAppIconSizeDiff / 2, Math.min(32, wsAppIconGapRaw))
-    // Internal gap for algorithm (offset so 0 UI = sizeDiff/2 internal)
     readonly property real wsAppIconGapInternal: wsAppIconGap + wsAppIconSizeDiff / 2
 
+    // Custom: PluginService Connections for dynamic settings reload
     Connections {
         target: PluginService
         function onPluginDataChanged(pluginId, key, value) {
@@ -593,11 +649,13 @@ Item {
         return root.workspaceList.filter(ws => {
             if (useExtWorkspace)
                 return ws && (ws.id !== "" || ws.name !== "") && !ws.hidden;
+            if (CompositorService.isNiri)
+                return ws && ws.idx !== -1;
             if (CompositorService.isHyprland)
                 return ws && ws.id !== -1;
             if (CompositorService.isDwl)
                 return ws && ws.tag !== -1;
-            if (CompositorService.isSway || CompositorService.isScroll)
+            if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                 return ws && ws.num !== -1;
             return ws !== -1;
         });
@@ -626,7 +684,7 @@ Item {
                 return;
             }
 
-            const currentIndex = realWorkspaces.findIndex(ws => ws === root.currentWorkspace);
+            const currentIndex = realWorkspaces.findIndex(ws => ws && ws.idx === root.currentWorkspace);
             const validIndex = currentIndex === -1 ? 0 : currentIndex;
             const nextIndex = direction > 0 ? Math.min(validIndex + 1, realWorkspaces.length - 1) : Math.max(validIndex - 1, 0);
 
@@ -634,7 +692,11 @@ Item {
                 return;
             }
 
-            NiriService.switchToWorkspace(realWorkspaces[nextIndex] - 1);
+            const nextWorkspace = realWorkspaces[nextIndex];
+            if (!nextWorkspace || nextWorkspace.idx === undefined) {
+                return;
+            }
+            NiriService.switchToWorkspace(nextWorkspace.idx);
         } else if (CompositorService.isHyprland) {
             const realWorkspaces = getRealWorkspaces();
             if (realWorkspaces.length < 2) {
@@ -665,7 +727,7 @@ Item {
             }
 
             DwlService.switchToTag(root.screenName, realWorkspaces[nextIndex].tag);
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             const realWorkspaces = getRealWorkspaces();
             if (realWorkspaces.length < 2) {
                 return;
@@ -685,15 +747,31 @@ Item {
         }
     }
 
+    function getWorkspaceIndexFallback(modelData, index) {
+        if (root.useExtWorkspace)
+            return index + 1;
+        if (CompositorService.isNiri)
+            return (modelData?.idx !== undefined && modelData?.idx !== -1) ? modelData.idx : "";
+        if (CompositorService.isHyprland)
+            return modelData?.id || "";
+        if (CompositorService.isDwl)
+            return (modelData?.tag !== undefined) ? (modelData.tag + 1) : "";
+        if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
+            return modelData?.num || "";
+        return modelData - 1;
+    }
+
     function getWorkspaceIndex(modelData, index) {
         let isPlaceholder;
         if (root.useExtWorkspace) {
             isPlaceholder = modelData?.hidden === true;
+        } else if (CompositorService.isNiri) {
+            isPlaceholder = modelData?.idx === -1;
         } else if (CompositorService.isHyprland) {
             isPlaceholder = modelData?.id === -1;
         } else if (CompositorService.isDwl) {
             isPlaceholder = modelData?.tag === -1;
-        } else if (CompositorService.isSway || CompositorService.isScroll) {
+        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
             isPlaceholder = modelData?.num === -1;
         } else {
             isPlaceholder = modelData === -1;
@@ -702,18 +780,31 @@ Item {
         if (isPlaceholder)
             return index + 1;
 
-        if (root.useExtWorkspace)
-            return index + 1;
-        if (CompositorService.isHyprland)
-            return modelData?.id || "";
-        if (CompositorService.isDwl)
-            return (modelData?.tag !== undefined) ? (modelData.tag + 1) : "";
-        if (CompositorService.isSway || CompositorService.isScroll)
-            return modelData?.num || "";
-        return modelData - 1;
+        let workspaceName = "";
+        if (SettingsData.showWorkspaceName) {
+            workspaceName = modelData?.name ?? "";
+
+            if (workspaceName && workspaceName !== "") {
+                if (root.isVertical) {
+                    workspaceName = workspaceName.charAt(0);
+                }
+            } else {
+                workspaceName = "";
+            }
+        }
+
+        if (workspaceName) {
+            if (SettingsData.showWorkspaceIndex) {
+                const indexLabel = getWorkspaceIndexFallback(modelData, index);
+                return indexLabel ? `${indexLabel}: ${workspaceName}` : workspaceName;
+            }
+            return workspaceName;
+        }
+
+        return getWorkspaceIndexFallback(modelData, index);
     }
 
-    readonly property bool hasNativeWorkspaceSupport: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll
+    readonly property bool hasNativeWorkspaceSupport: CompositorService.isNiri || CompositorService.isHyprland || CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle
     readonly property bool hasWorkspaces: getRealWorkspaces().length > 0
     readonly property bool shouldShow: hasNativeWorkspaceSupport || (useExtWorkspace && hasWorkspaces)
 
@@ -788,8 +879,6 @@ Item {
 
         property real touchpadAccumulator: 0
         property real mouseAccumulator: 0
-        property real touchpadThreshold: 500
-        property real mouseThreshold: 120
         property bool scrollInProgress: false
 
         Timer {
@@ -813,41 +902,55 @@ Item {
                 return;
 
             const delta = wheel.angleDelta.y;
-            const isMouseWheel = Math.abs(delta) >= 120 && (Math.abs(delta) % 120) === 0;
+            const isTouchpad = wheel.pixelDelta && wheel.pixelDelta.y !== 0;
             const reverse = SettingsData.reverseScrolling ? -1 : 1;
 
-            if (isMouseWheel) {
-                // Standard mouse wheel - use mouse accumulator for high-DPI support
-                mouseAccumulator += delta;
-                if (Math.abs(mouseAccumulator) >= mouseThreshold) {
-                    const direction = mouseAccumulator * reverse < 0 ? 1 : -1;
-                    root.switchWorkspace(direction);
-                    scrollInProgress = true;
-                    scrollCooldown.restart();
-                    mouseAccumulator = 0;
-                }
-            } else {
-                // Touchpad - use touchpad accumulator
+            if (isTouchpad) {
                 touchpadAccumulator += delta;
-                if (Math.abs(touchpadAccumulator) >= touchpadThreshold) {
-                    const touchDirection = touchpadAccumulator * reverse < 0 ? 1 : -1;
-                    root.switchWorkspace(touchDirection);
-                    scrollInProgress = true;
-                    scrollCooldown.restart();
-                    touchpadAccumulator = 0;
-                }
+                if (Math.abs(touchpadAccumulator) < 500)
+                    return;
+                const direction = touchpadAccumulator * reverse < 0 ? 1 : -1;
+                root.switchWorkspace(direction);
+                scrollInProgress = true;
+                scrollCooldown.restart();
+                touchpadAccumulator = 0;
+                return;
             }
+
+            mouseAccumulator += delta;
+            if (Math.abs(mouseAccumulator) < 120)
+                return;
+            const direction = mouseAccumulator * reverse < 0 ? 1 : -1;
+            root.switchWorkspace(direction);
+            scrollInProgress = true;
+            scrollCooldown.restart();
+            mouseAccumulator = 0;
+        }
+    }
+
+    property int dragSourceIndex: -1
+    property int dragTargetIndex: -1
+    property bool suppressShiftAnimation: false
+
+    onWorkspaceListChanged: {
+        if (dragSourceIndex >= 0) {
+            dragSourceIndex = -1;
+            dragTargetIndex = -1;
+            suppressShiftAnimation = false;
         }
     }
 
     Flow {
         id: workspaceRow
 
-        anchors.centerIn: parent
+        x: isVertical ? visualBackground.x : (parent.width - implicitWidth) / 2
+        y: isVertical ? (parent.height - implicitHeight) / 2 : visualBackground.y
+        // Custom: use configurable gap
         spacing: root.wsGap
         flow: isVertical ? Flow.TopToBottom : Flow.LeftToRight
 
         Repeater {
+            id: workspaceRepeater
             model: ScriptModel {
                 values: root.workspaceList
             }
@@ -855,47 +958,187 @@ Item {
             Item {
                 id: delegateRoot
 
+                property bool isDropTarget: root.dragTargetIndex === index
+
+                z: dragHandler.dragging ? 1000 : 1
+
+                property real shiftOffset: {
+                    if (root.dragSourceIndex < 0 || index === root.dragSourceIndex)
+                        return 0;
+                    const dragIdx = root.dragSourceIndex;
+                    const dropIdx = root.dragTargetIndex;
+                    if (dropIdx < 0)
+                        return 0;
+                    const shiftAmount = delegateRoot.width + root.wsGap;
+                    if (dragIdx < dropIdx && index > dragIdx && index <= dropIdx)
+                        return -shiftAmount;
+                    if (dragIdx > dropIdx && index >= dropIdx && index < dragIdx)
+                        return shiftAmount;
+                    return 0;
+                }
+
+                transform: Translate {
+                    x: root.isVertical ? 0 : delegateRoot.shiftOffset
+                    y: root.isVertical ? delegateRoot.shiftOffset : 0
+                    Behavior on x {
+                        enabled: !root.suppressShiftAnimation
+                        NumberAnimation {
+                            duration: 150
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                    Behavior on y {
+                        enabled: !root.suppressShiftAnimation
+                        NumberAnimation {
+                            duration: 150
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+
                 property bool isActive: {
                     if (root.useExtWorkspace)
                         return (modelData?.id || modelData?.name) === root.currentWorkspace;
+                    if (CompositorService.isNiri)
+                        return !!(modelData && modelData.idx === root.currentWorkspace);
                     if (CompositorService.isHyprland)
                         return !!(modelData && modelData.id === root.currentWorkspace);
                     if (CompositorService.isDwl)
                         return !!(modelData && root.dwlActiveTags.includes(modelData.tag));
-                    if (CompositorService.isSway || CompositorService.isScroll)
+                    if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                         return !!(modelData && modelData.num === root.currentWorkspace);
                     return modelData === root.currentWorkspace;
+                }
+                property bool isOccupied: {
+                    if (CompositorService.isHyprland)
+                        return Array.from(Hyprland.toplevels?.values || []).some(tl => tl.workspace?.id === modelData?.id);
+                    if (CompositorService.isDwl)
+                        return modelData.clients > 0;
+                    if (CompositorService.isNiri) {
+                        if (!modelData || typeof modelData !== "object" || modelData.id === undefined)
+                            return false;
+                        return NiriService.windows?.some(win => win.workspace_id === modelData.id) ?? false;
+                    }
+                    return false;
                 }
                 property bool isPlaceholder: {
                     if (root.useExtWorkspace)
                         return !!(modelData && modelData.hidden);
+                    if (CompositorService.isNiri)
+                        return !!(modelData && modelData.idx === -1);
                     if (CompositorService.isHyprland)
                         return !!(modelData && modelData.id === -1);
                     if (CompositorService.isDwl)
                         return !!(modelData && modelData.tag === -1);
-                    if (CompositorService.isSway || CompositorService.isScroll)
+                    if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                         return !!(modelData && modelData.num === -1);
                     return modelData === -1;
                 }
                 property bool isHovered: mouseArea.containsMouse
 
+                // Custom: colors from PluginService
                 readonly property color unfocusedColor: root.wsUnfocusedColor
                 readonly property color activeColor: root.wsActiveColor
                 readonly property color occupiedColor: root.wsOccupiedColor
                 readonly property color urgentColor: root.wsUrgentColor
 
-                property bool isOccupied: {
+                property var loadedWorkspaceData: null
+                property bool loadedIsUrgent: false
+                property bool isUrgent: {
+                    if (root.useExtWorkspace)
+                        return modelData?.urgent ?? false;
                     if (CompositorService.isHyprland)
-                        return Array.from(Hyprland.toplevels?.values || []).some(tl => tl.workspace?.id === modelData?.id)
+                        return modelData?.urgent ?? false;
+                    if (CompositorService.isNiri)
+                        return loadedIsUrgent;
                     if (CompositorService.isDwl)
-                        return modelData.clients > 0
-                    if (CompositorService.isNiri) {
-                        const workspace = NiriService.allWorkspaces.find(ws => ws.idx + 1 === modelData && ws.output === root.screenName)
-                        return workspace ? (NiriService.windows?.some(win => win.workspace_id === workspace.id) ?? false) : false
+                        return modelData?.state === 2;
+                    if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
+                        return loadedIsUrgent;
+                    return false;
+                }
+                readonly property var loadedIconData: {
+                    if (isPlaceholder) return null;
+                    const name = modelData?.name;
+                    if (!name) return null;
+                    return SettingsData.getWorkspaceNameIcon(name);
+                }
+                readonly property bool loadedHasIcon: loadedIconData !== null
+                property var loadedIcons: []
+
+                readonly property int stableIconCount: {
+                    if (!SettingsData.showWorkspaceApps || isPlaceholder)
+                        return 0;
+
+                    let targetWorkspaceId;
+                    if (root.useExtWorkspace) {
+                        targetWorkspaceId = modelData?.id || modelData?.name;
+                    } else if (CompositorService.isNiri) {
+                        targetWorkspaceId = modelData?.id;
+                    } else if (CompositorService.isHyprland) {
+                        targetWorkspaceId = modelData?.id;
+                    } else if (CompositorService.isDwl) {
+                        targetWorkspaceId = modelData?.tag;
+                    } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
+                        targetWorkspaceId = modelData?.num;
                     }
-                    return false
+                    if (targetWorkspaceId === undefined || targetWorkspaceId === null)
+                        return 0;
+
+                    const wins = CompositorService.isNiri ? (NiriService.windows || []) : CompositorService.sortedToplevels;
+                    let totalCount = 0;
+
+                    for (let i = 0; i < wins.length; i++) {
+                        const w = wins[i];
+                        if (!w)
+                            continue;
+
+                        let winWs = null;
+                        if (CompositorService.isNiri) {
+                            winWs = w.workspace_id;
+                        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
+                            winWs = w.workspace?.num;
+                        } else if (CompositorService.isHyprland) {
+                            const hyprlandToplevels = Array.from(Hyprland.toplevels?.values || []);
+                            const hyprToplevel = hyprlandToplevels.find(ht => ht.wayland === w);
+                            winWs = hyprToplevel?.workspace?.id;
+                        }
+
+                        if (winWs !== targetWorkspaceId)
+                            continue;
+                        totalCount++;
+                    }
+
+                    // Custom: always count individual windows (no grouping)
+                    return totalCount;
                 }
 
+                readonly property real baseWidth: root.isVertical ? root.barThickness : Theme.spacingS
+                readonly property real baseHeight: root.isVertical ? Theme.spacingS : (SettingsData.showWorkspaceApps ? widgetHeight * 1.0 : widgetHeight * 0.5)
+
+                readonly property real iconsExtraWidth: {
+                    if (!root.isVertical && SettingsData.showWorkspaceApps && stableIconCount > 0) {
+                        const numIcons = Math.min(stableIconCount, SettingsData.maxWorkspaceIcons);
+                        // Custom: use wsAppIconNormal/wsAppIconActive sizes
+                        return (numIcons > 0 ? (numIcons - 1) * root.wsAppIconNormal + root.wsAppIconActive : 0) + (numIcons > 0 ? (numIcons - 1) * Theme.spacingXS : 0) + (isActive ? Theme.spacingXS : 0);
+                    }
+                    return 0;
+                }
+                readonly property real iconsExtraHeight: {
+                    if (root.isVertical && SettingsData.showWorkspaceApps && stableIconCount > 0) {
+                        const numIcons = Math.min(stableIconCount, SettingsData.maxWorkspaceIcons);
+                        // Custom: use column layout sizing with negative margins
+                        const baseHeight = numIcons * root.wsAppIconNormal + (numIcons - 1) * root.wsAppIconGapInternal;
+                        const activeNetChange = root.wsAppIconSizeDiff - 2 * Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2);
+                        return baseHeight + activeNetChange;
+                    }
+                    return 0;
+                }
+
+                readonly property real visualWidth: baseWidth + iconsExtraWidth
+                readonly property real visualHeight: Math.max(root.wsAppIconActive, baseHeight + iconsExtraHeight + root.wsAppIconNormal + 4 + (loadedHasIcon ? root.wsAppIconNormal + 4 : 0))
+
+                // Custom: text color helper functions
                 function getContrastingIconColor(bgColor, bgOpacity) {
                     if (bgOpacity < 0.1)
                         return Theme.widgetTextColor
@@ -940,95 +1183,139 @@ Item {
                 readonly property color quickshellIconActiveColor: getContrastingIconColor(activeColor, root.activeOpacity / 100)
                 readonly property color quickshellIconInactiveColor: getContrastingIconColor(unfocusedColor, root.unfocusedOpacity / 100)
 
+                // Custom: per-state text colors
                 readonly property color activeTextColor: getTextColorForState("active")
                 readonly property color unfocusedTextColor: getTextColorForState("unfocused")
                 readonly property color occupiedTextColor: getTextColorForState("occupied")
                 readonly property color urgentTextColor: getTextColorForState("urgent")
 
-                property var loadedWorkspaceData: null
-                property bool loadedIsUrgent: false
-                property bool isUrgent: {
-                    if (root.useExtWorkspace)
-                        return modelData?.urgent ?? false;
-                    if (CompositorService.isHyprland)
-                        return modelData?.urgent ?? false;
-                    if (CompositorService.isNiri)
-                        return loadedIsUrgent;
-                    if (CompositorService.isDwl)
-                        return modelData?.state === 2;
-                    if (CompositorService.isSway || CompositorService.isScroll)
-                        return loadedIsUrgent;
-                    return false;
-                }
-                property var loadedIconData: null
-                property bool loadedHasIcon: false
-                property var loadedIcons: []
-
-                readonly property real baseWidth: root.isVertical ? root.barThickness : Theme.spacingS
-                readonly property real baseHeight: root.isVertical ? Theme.spacingS : (SettingsData.showWorkspaceApps ? widgetHeight * 1.0 : widgetHeight * 0.5)
-
-                readonly property real iconsExtraWidth: {
-                    if (!root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
-                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
-                        return (numIcons > 0 ? (numIcons - 1) * root.wsAppIconNormal + root.wsAppIconActive : 0) + (numIcons > 0 ? (numIcons - 1) * Theme.spacingXS : 0);
+                readonly property color focusedBorderColor: {
+                    switch (SettingsData.workspaceFocusedBorderColor) {
+                    case "surfaceText":
+                        return Theme.surfaceText;
+                    case "secondary":
+                        return Theme.secondary;
+                    default:
+                        return Theme.primary;
                     }
-                    return 0;
-                }
-                readonly property real iconsExtraHeight: {
-                    if (root.isVertical && SettingsData.showWorkspaceApps && loadedIcons.length > 0) {
-                        const numIcons = Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons);
-                        // Base: all normal icons + gaps
-                        const baseHeight = numIcons * root.wsAppIconNormal + (numIcons - 1) * root.wsAppIconGapInternal;
-                        // Active icon adds sizeDiff but negative margins absorb min(gap, sizeDiff/2) * 2
-                        // Net change from 1 active: sizeDiff - 2*min(gap, sizeDiff/2)
-                        const activeNetChange = root.wsAppIconSizeDiff - 2 * Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2);
-                        return baseHeight + activeNetChange;
-                    }
-                    return 0;
                 }
 
-                readonly property real visualWidth: baseWidth + iconsExtraWidth
-                readonly property real visualHeight: Math.max(root.wsAppIconActive, baseHeight + iconsExtraHeight + root.wsAppIconNormal + 4 + (loadedHasIcon ? root.wsAppIconNormal + 4 : 0))
+                Item {
+                    id: dragHandler
+                    anchors.fill: parent
+                    property bool dragging: false
+                    property point dragStartPos: Qt.point(0, 0)
+                    property real dragAxisOffset: 0
+
+                    Connections {
+                        target: root
+                        function onWorkspaceListChanged() {
+                            if (dragHandler.dragging) {
+                                dragHandler.dragging = false;
+                                dragHandler.dragAxisOffset = 0;
+                                mouseArea.mousePressed = false;
+                            }
+                        }
+                    }
+                }
 
                 MouseArea {
                     id: mouseArea
                     anchors.fill: parent
                     hoverEnabled: !isPlaceholder
-                    cursorShape: isPlaceholder ? Qt.ArrowCursor : Qt.PointingHandCursor
+                    cursorShape: isPlaceholder ? Qt.ArrowCursor : (dragHandler.dragging ? Qt.ClosedHandCursor : Qt.PointingHandCursor)
                     enabled: !isPlaceholder
                     acceptedButtons: Qt.LeftButton | Qt.RightButton
-                    onClicked: mouse => {
-                        if (isPlaceholder)
-                            return;
-                        const isRightClick = mouse.button === Qt.RightButton;
 
-                        if (root.useExtWorkspace && (modelData?.id || modelData?.name)) {
-                            ExtWorkspaceService.activateWorkspace(modelData.id || modelData.name, modelData.groupID || "");
-                        } else if (CompositorService.isNiri) {
-                            if (isRightClick) {
-                                NiriService.toggleOverview();
-                            } else {
-                                NiriService.switchToWorkspace(modelData - 1);
+                    property bool mousePressed: false
+
+                    onPressed: mouse => {
+                        if (mouse.button === Qt.LeftButton && CompositorService.isNiri && SettingsData.workspaceDragReorder && !isPlaceholder) {
+                            mousePressed = true;
+                            dragHandler.dragStartPos = Qt.point(mouse.x, mouse.y);
+                        }
+                    }
+
+                    onPositionChanged: mouse => {
+                        if (!mousePressed || !CompositorService.isNiri || !SettingsData.workspaceDragReorder || isPlaceholder)
+                            return;
+
+                        if (!dragHandler.dragging) {
+                            const distance = root.isVertical ? Math.abs(mouse.y - dragHandler.dragStartPos.y) : Math.abs(mouse.x - dragHandler.dragStartPos.x);
+                            if (distance > 5) {
+                                dragHandler.dragging = true;
+                                root.dragSourceIndex = index;
+                                root.dragTargetIndex = index;
                             }
-                        } else if (CompositorService.isHyprland && modelData?.id) {
-                            if (isRightClick && root.hyprlandOverviewLoader?.item) {
-                                root.hyprlandOverviewLoader.item.overviewOpen = !root.hyprlandOverviewLoader.item.overviewOpen;
-                            } else {
+                        }
+
+                        if (!dragHandler.dragging)
+                            return;
+
+                        const rawAxisOffset = root.isVertical ? (mouse.y - dragHandler.dragStartPos.y) : (mouse.x - dragHandler.dragStartPos.x);
+
+                        const itemSize = (root.isVertical ? delegateRoot.height : delegateRoot.width) + root.wsGap;
+                        const maxOffsetPositive = (root.workspaceList.length - 1 - index) * itemSize;
+                        const maxOffsetNegative = -index * itemSize;
+                        const axisOffset = Math.max(maxOffsetNegative, Math.min(maxOffsetPositive, rawAxisOffset));
+                        dragHandler.dragAxisOffset = axisOffset;
+
+                        const slotOffset = Math.round(axisOffset / itemSize);
+                        const newTargetIndex = Math.max(0, Math.min(root.workspaceList.length - 1, index + slotOffset));
+
+                        if (newTargetIndex !== root.dragTargetIndex) {
+                            root.dragTargetIndex = newTargetIndex;
+                        }
+                    }
+
+                    onReleased: mouse => {
+                        const wasDragging = dragHandler.dragging;
+                        const didReorder = wasDragging && root.dragTargetIndex >= 0 && root.dragTargetIndex !== root.dragSourceIndex;
+
+                        if (didReorder) {
+                            const sourceWs = root.workspaceList[root.dragSourceIndex];
+                            const targetWs = root.workspaceList[root.dragTargetIndex];
+
+                            if (sourceWs && targetWs && sourceWs.idx !== undefined && targetWs.idx !== undefined) {
+                                root.suppressShiftAnimation = true;
+                                NiriService.moveWorkspaceToIndex(sourceWs.idx, targetWs.idx);
+                                Qt.callLater(() => root.suppressShiftAnimation = false);
+                            }
+                        }
+
+                        mousePressed = false;
+                        dragHandler.dragging = false;
+                        dragHandler.dragAxisOffset = 0;
+                        root.dragSourceIndex = -1;
+                        root.dragTargetIndex = -1;
+
+                        if (wasDragging || isPlaceholder)
+                            return;
+
+                        if (mouse.button === Qt.LeftButton) {
+                            if (root.useExtWorkspace && (modelData?.id || modelData?.name)) {
+                                ExtWorkspaceService.activateWorkspace(modelData.id || modelData.name, modelData.groupID || "");
+                            } else if (CompositorService.isNiri) {
+                                if (modelData && modelData.idx !== undefined) {
+                                    NiriService.switchToWorkspace(modelData.idx);
+                                }
+                            } else if (CompositorService.isHyprland && modelData?.id) {
                                 Hyprland.dispatch(`workspace ${modelData.id}`);
-                            }
-                        } else if (CompositorService.isDwl && modelData?.tag !== undefined) {
-                            console.log("DWL click - tag:", modelData.tag, "rightClick:", isRightClick);
-                            if (isRightClick) {
-                                console.log("Calling toggleTag");
-                                DwlService.toggleTag(root.screenName, modelData.tag);
-                            } else {
-                                console.log("Calling switchToTag");
+                            } else if (CompositorService.isDwl && modelData?.tag !== undefined) {
                                 DwlService.switchToTag(root.screenName, modelData.tag);
+                            } else if ((CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) && modelData?.num) {
+                                try {
+                                    I3.dispatch(`workspace number ${modelData.num}`);
+                                } catch (_) {}
                             }
-                        } else if ((CompositorService.isSway || CompositorService.isScroll) && modelData?.num) {
-                            try {
-                                I3.dispatch(`workspace number ${modelData.num}`);
-                            } catch (_) {}
+                        } else if (mouse.button === Qt.RightButton) {
+                            if (CompositorService.isNiri) {
+                                NiriService.toggleOverview();
+                            } else if (CompositorService.isHyprland && root.hyprlandOverviewLoader?.item) {
+                                root.hyprlandOverviewLoader.item.overviewOpen = !root.hyprlandOverviewLoader.item.overviewOpen;
+                            } else if (CompositorService.isDwl && modelData?.tag !== undefined) {
+                                DwlService.toggleTag(root.screenName, modelData.tag);
+                            }
                         }
                     }
                 }
@@ -1039,8 +1326,6 @@ Item {
                     onTriggered: {
                         if (isPlaceholder) {
                             delegateRoot.loadedWorkspaceData = null;
-                            delegateRoot.loadedIconData = null;
-                            delegateRoot.loadedHasIcon = false;
                             delegateRoot.loadedIcons = [];
                             delegateRoot.loadedIsUrgent = false;
                             return;
@@ -1050,12 +1335,12 @@ Item {
                         if (root.useExtWorkspace) {
                             wsData = modelData;
                         } else if (CompositorService.isNiri) {
-                            wsData = NiriService.allWorkspaces.find(ws => ws.idx + 1 === modelData && ws.output === root.screenName) || null;
+                            wsData = modelData || null;
                         } else if (CompositorService.isHyprland) {
                             wsData = modelData;
                         } else if (CompositorService.isDwl) {
                             wsData = modelData;
-                        } else if (CompositorService.isSway || CompositorService.isScroll) {
+                        } else if (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                             wsData = modelData;
                         }
                         delegateRoot.loadedWorkspaceData = wsData;
@@ -1066,16 +1351,11 @@ Item {
                             delegateRoot.loadedIsUrgent = wsData?.urgent ?? false;
                         }
 
-                        var icData = null;
-                        if (wsData?.name) {
-                            icData = SettingsData.getWorkspaceNameIcon(wsData.name);
-                        }
-                        delegateRoot.loadedIconData = icData;
-                        delegateRoot.loadedHasIcon = icData !== null;
-
                         if (SettingsData.showWorkspaceApps) {
-                            if (CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll) {
+                            if (CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                                 delegateRoot.loadedIcons = root.getWorkspaceIcons(modelData);
+                            } else if (CompositorService.isNiri) {
+                                delegateRoot.loadedIcons = root.getWorkspaceIcons(isPlaceholder ? null : modelData);
                             } else {
                                 delegateRoot.loadedIcons = root.getWorkspaceIcons(CompositorService.isHyprland ? modelData : (modelData === -1 ? null : modelData));
                             }
@@ -1089,18 +1369,81 @@ Item {
                     dataUpdateTimer.restart();
                 }
 
-                width: root.isVertical ? root.barThickness : visualWidth
-                height: root.isVertical ? visualHeight : root.barThickness
+                width: root.isVertical ? root.widgetHeight : visualWidth
+                height: root.isVertical ? visualHeight : root.widgetHeight
+
+                Behavior on width {
+                    NumberAnimation {
+                        duration: Theme.mediumDuration
+                        easing.type: Theme.emphasizedEasing
+                    }
+                }
+
+                Behavior on height {
+                    NumberAnimation {
+                        duration: Theme.mediumDuration
+                        easing.type: Theme.emphasizedEasing
+                    }
+                }
+
+                Rectangle {
+                    id: focusedBorderRing
+                    x: root.isVertical ? (root.widgetHeight - width) / 2 : (parent.width - width) / 2
+                    y: root.isVertical ? (parent.height - height) / 2 : (root.widgetHeight - height) / 2
+                    width: {
+                        const borderWidth = (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? SettingsData.workspaceFocusedBorderThickness : 0;
+                        return delegateRoot.visualWidth + borderWidth * 2;
+                    }
+                    height: {
+                        const borderWidth = (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? SettingsData.workspaceFocusedBorderThickness : 0;
+                        return delegateRoot.visualHeight + borderWidth * 2;
+                    }
+                    radius: Theme.cornerRadius
+                    color: "transparent"
+                    border.width: (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? SettingsData.workspaceFocusedBorderThickness : 0
+                    border.color: (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? focusedBorderColor : "transparent"
+
+                    Behavior on width {
+                        NumberAnimation {
+                            duration: Theme.mediumDuration
+                            easing.type: Theme.emphasizedEasing
+                        }
+                    }
+
+                    Behavior on height {
+                        NumberAnimation {
+                            duration: Theme.mediumDuration
+                            easing.type: Theme.emphasizedEasing
+                        }
+                    }
+
+                    Behavior on border.width {
+                        NumberAnimation {
+                            duration: Theme.mediumDuration
+                            easing.type: Theme.emphasizedEasing
+                        }
+                    }
+
+                    Behavior on border.color {
+                        ColorAnimation {
+                            duration: Theme.mediumDuration
+                            easing.type: Theme.emphasizedEasing
+                        }
+                    }
+                }
 
                 Rectangle {
                     id: visualContent
                     width: delegateRoot.visualWidth
                     height: delegateRoot.visualHeight
-                    anchors.centerIn: parent
+                    x: root.isVertical ? (root.widgetHeight - width) / 2 : (parent.width - width) / 2
+                    y: root.isVertical ? (parent.height - height) / 2 : (root.widgetHeight - height) / 2
+                    // Custom: per-corner radius for flat outer edge
                     topLeftRadius: root.topLeftRadius
                     topRightRadius: root.topRightRadius
                     bottomLeftRadius: root.bottomLeftRadius
                     bottomRightRadius: root.bottomRightRadius
+                    // Custom: colors with opacity from PluginService
                     color: {
                         if (isActive)
                             return Theme.withAlpha(activeColor, root.activeOpacity / 100)
@@ -1114,9 +1457,22 @@ Item {
                             return Theme.withAlpha(occupiedColor, root.occupiedOpacity / 100)
                         return Theme.withAlpha(unfocusedColor, root.unfocusedOpacity / 100)
                     }
+                    opacity: dragHandler.dragging ? 0.8 : 1.0
 
-                    border.width: isUrgent ? 2 : 0
-                    border.color: isUrgent ? Theme.error : Theme.withAlpha(Theme.error, 0)
+                    border.width: dragHandler.dragging ? 2 : (isUrgent ? 2 : (isDropTarget ? 2 : 0))
+                    border.color: dragHandler.dragging ? Theme.primary : (isUrgent ? urgentColor : (isDropTarget ? Theme.primary : "transparent"))
+
+                    transform: Translate {
+                        x: root.isVertical ? 0 : (dragHandler.dragging ? dragHandler.dragAxisOffset : 0)
+                        y: root.isVertical ? (dragHandler.dragging ? dragHandler.dragAxisOffset : 0) : 0
+                    }
+
+                    Behavior on opacity {
+                        NumberAnimation {
+                            duration: Theme.shortDuration
+                            easing.type: Theme.emphasizedEasing
+                        }
+                    }
 
                     Behavior on width {
                         NumberAnimation {
@@ -1156,13 +1512,15 @@ Item {
                     Loader {
                         id: appIconsLoader
                         anchors.fill: parent
-                        active: SettingsData.showWorkspaceApps
+                        active: SettingsData.showWorkspaceApps || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
                         sourceComponent: Item {
+                            id: contentRoot
+                            readonly property real contentWidth: contentRow.item?.implicitWidth ?? 0
+                            readonly property real contentHeight: contentRow.item?.implicitHeight ?? 0
+
                             Loader {
                                 id: contentRow
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.top: parent.top
-                                anchors.topMargin: 6
+                                anchors.centerIn: parent
                                 sourceComponent: root.isVertical ? columnLayout : rowLayout
                             }
 
@@ -1170,18 +1528,20 @@ Item {
                                 id: rowLayout
                                 Row {
                                     spacing: 4
-                                    visible: true || SettingsData.showWorkspaceIndex || loadedHasIcon
+                                    visible: loadedIcons.length > 0 || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
 
                                     Item {
                                         visible: loadedHasIcon && loadedIconData?.type === "icon"
                                         width: wsIcon.width + (isActive && loadedIcons.length > 0 ? 4 : 0)
-                                        height: root.appIconSize
+                                        height: root.wsAppIconActive
 
                                         DankIcon {
                                             id: wsIcon
                                             anchors.verticalCenter: parent.verticalCenter
                                             name: loadedIconData?.value ?? ""
+                                            // Custom: use wsNameIconSize
                                             size: root.wsNameIconSize
+                                            // Custom: per-state text colors
                                             color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             weight: (isActive && !isPlaceholder) ? 500 : 400
                                         }
@@ -1190,12 +1550,13 @@ Item {
                                     Item {
                                         visible: loadedHasIcon && loadedIconData?.type === "text"
                                         width: wsText.implicitWidth + (isActive && loadedIcons.length > 0 ? 4 : 0)
-                                        height: root.appIconSize
+                                        height: root.wsAppIconActive
 
                                         StyledText {
                                             id: wsText
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: loadedIconData?.value ?? ""
+                                            // Custom: per-state text colors
                                             color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                             font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
@@ -1203,14 +1564,15 @@ Item {
                                     }
 
                                     Item {
-                                        visible: SettingsData.showWorkspaceIndex && !loadedHasIcon
+                                        visible: ((SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName) && !loadedHasIcon) || (loadedHasIcon && SettingsData.showWorkspaceName && hasWorkspaceName)
                                         width: wsIndexText.implicitWidth + (isActive && loadedIcons.length > 0 ? 4 : 0)
-                                        height: root.appIconSize
+                                        height: root.wsAppIconActive
 
                                         StyledText {
                                             id: wsIndexText
                                             anchors.verticalCenter: parent.verticalCenter
-                                            text: root.getWorkspaceIndex(modelData, index)
+                                            text: loadedHasIcon ? (modelData?.name ?? "") : root.getWorkspaceIndex(modelData, index)
+                                            // Custom: per-state text colors
                                             color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                             font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
@@ -1222,11 +1584,13 @@ Item {
                                             values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                         }
                                         delegate: Item {
+                                            // Custom: use wsAppIconActive/wsAppIconNormal sizes
                                             width: root.wsAppIconActive
                                             height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
 
                                             IconImage {
                                                 id: rowAppIcon
+                                                // Custom: dynamic icon size
                                                 width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
                                                 height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
                                                 anchors.centerIn: parent
@@ -1248,6 +1612,13 @@ Item {
                                                 }
                                             }
 
+                                            IconImage {
+                                                anchors.fill: parent
+                                                source: modelData.icon
+                                                opacity: 1.0
+                                                visible: modelData.isSteamApp && modelData.icon
+                                            }
+
                                             DankIcon {
                                                 anchors.centerIn: parent
                                                 size: root.wsAppIconNormal
@@ -1257,7 +1628,7 @@ Item {
                                                 visible: modelData.isSteamApp && !modelData.icon
                                             }
 
-                                            // Fallback icon if no icon found
+                                            // Custom: fallback icon when no icon found
                                             Rectangle {
                                                 anchors.centerIn: parent
                                                 width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
@@ -1325,18 +1696,19 @@ Item {
                                 id: columnLayout
                                 Column {
                                     spacing: 4
-                                    visible: true || loadedHasIcon
+                                    visible: loadedIcons.length > 0 || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
 
+                                    // Custom: workspace name/number and icon header
                                     Column {
                                         width: root.wsAppIconActive
                                         spacing: 0
-                                        visible: true || loadedHasIcon
 
                                         StyledText {
-                                            visible: true
-                                            text: index + 1
+                                            visible: SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName
+                                            text: root.getWorkspaceIndex(modelData, index)
+                                            // Custom: per-state text colors
                                             color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
-                                            font.pixelSize: 18
+                                            font.pixelSize: root.wsNameIconSize
                                             anchors.horizontalCenter: parent.horizontalCenter
                                         }
 
@@ -1344,7 +1716,9 @@ Item {
                                             visible: loadedHasIcon && loadedIconData?.type === "icon"
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             name: loadedIconData?.value ?? ""
+                                            // Custom: use wsNameIconSize
                                             size: root.wsNameIconSize
+                                            // Custom: per-state text colors
                                             color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             weight: (isActive && !isPlaceholder) ? 500 : 400
                                         }
@@ -1353,17 +1727,19 @@ Item {
                                             visible: loadedHasIcon && loadedIconData?.type === "text"
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: loadedIconData?.value ?? ""
+                                            // Custom: per-state text colors
                                             color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
                                             font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
                                         }
                                     }
 
+                                    // Custom: ColumnLayout with negative margins for active icon overlap
                                     Item {
                                         width: colIconsLayout.width
                                         height: colIconsLayout.height
 
-                                        // DEBUG: visualize ColumnLayout bounds
+                                        // Custom: debug rectangle
                                         Rectangle {
                                             visible: root.debugMode
                                             anchors.fill: colIconsLayout
@@ -1375,12 +1751,7 @@ Item {
                                             width: root.wsAppIconActive
 
                                             property int numIcons: Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
-
-                                            // Active icons use negative margins to "eat into" adjacent gaps
-                                            // This creates the visual effect of active icons touching neighbors when gap <= sizeDiff/2
                                             property real activeMargin: -Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2)
-
-                                            // Total height: base (all normal + gaps) + net change from 1 active icon
                                             property real baseHeight: numIcons * root.wsAppIconNormal + (numIcons - 1) * root.wsAppIconGapInternal
                                             property real activeNetChange: root.wsAppIconSizeDiff - 2 * Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2)
                                             property real totalHeight: baseHeight + activeNetChange
@@ -1393,14 +1764,12 @@ Item {
                                                     values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                                 }
                                                 delegate: Item {
-                                                    // Wrapper matches icon size
                                                     Layout.preferredHeight: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
                                                     Layout.preferredWidth: root.wsAppIconActive
-                                                    // Active icons use negative margins to overlap into adjacent gaps
                                                     Layout.topMargin: modelData.active ? colIconsLayout.activeMargin : 0
                                                     Layout.bottomMargin: modelData.active ? colIconsLayout.activeMargin : 0
 
-                                                    // DEBUG: visualize wrapper bounds
+                                                    // Custom: debug rectangle
                                                     Rectangle {
                                                         visible: root.debugMode
                                                         anchors.fill: parent
@@ -1413,10 +1782,11 @@ Item {
                                                         height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
                                                         anchors.centerIn: parent
                                                         source: modelData.icon
+                                                        opacity: 1.0
                                                         visible: !modelData.isQuickshell && (!modelData.isSteamApp || modelData.icon)
                                                     }
 
-                                                    // DEBUG: visualize icon bounds
+                                                    // Custom: debug rectangle for icon bounds
                                                     Rectangle {
                                                         visible: root.debugMode
                                                         width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
@@ -1428,6 +1798,7 @@ Item {
                                                     IconImage {
                                                         anchors.fill: parent
                                                         source: modelData.icon
+                                                        opacity: 1.0
                                                         visible: modelData.isQuickshell
                                                         layer.enabled: true
                                                         layer.effect: MultiEffect {
@@ -1435,6 +1806,13 @@ Item {
                                                             colorization: 1
                                                             colorizationColor: isActive ? quickshellIconActiveColor : quickshellIconInactiveColor
                                                         }
+                                                    }
+
+                                                    IconImage {
+                                                        anchors.fill: parent
+                                                        source: modelData.icon
+                                                        opacity: 1.0
+                                                        visible: modelData.isSteamApp && modelData.icon
                                                     }
 
                                                     DankIcon {
@@ -1446,7 +1824,7 @@ Item {
                                                         visible: modelData.isSteamApp && !modelData.icon
                                                     }
 
-                                                    // Fallback icon if no icon found
+                                                    // Custom: fallback icon when no icon found
                                                     Rectangle {
                                                         anchors.centerIn: parent
                                                         width: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
@@ -1514,55 +1892,6 @@ Item {
                         }
                     }
 
-                    // Loader for Custom Name Icon
-                    Loader {
-                        id: customIconLoader
-                        anchors.fill: parent
-                        active: false
-                        sourceComponent: Item {
-                            DankIcon {
-                                anchors.centerIn: parent
-                                name: loadedIconData ? loadedIconData.value : "" // NULL CHECK
-                                size: Theme.fontSizeSmall
-                                color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
-                                weight: isActive && !isPlaceholder ? 500 : 400
-                            }
-                        }
-                    }
-
-                    // Loader for Custom Name Text
-                    Loader {
-                        id: customTextLoader
-                        anchors.fill: parent
-                        active: !isPlaceholder && loadedHasIcon && loadedIconData.type === "text" && !SettingsData.showWorkspaceApps
-                        sourceComponent: Item {
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: loadedIconData ? loadedIconData.value : "" // NULL CHECK
-                                color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
-                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
-                            }
-                        }
-                    }
-
-                    // Loader for Workspace Index
-                    Loader {
-                        id: indexLoader
-                        anchors.fill: parent
-                        active: false
-                        sourceComponent: Item {
-                            StyledText {
-                                anchors.centerIn: parent
-                                text: {
-                                    return root.getWorkspaceIndex(modelData, index);
-                                }
-                                color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
-                                font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale)
-                                font.weight: (isActive && !isPlaceholder) ? Font.DemiBold : Font.Normal
-                            }
-                        }
-                    }
                 }
 
                 Component.onCompleted: updateAllData()
@@ -1594,6 +1923,9 @@ Item {
                     function onWorkspaceNameIconsChanged() {
                         delegateRoot.updateAllData();
                     }
+                    function onAppIdSubstitutionsChanged() {
+                        delegateRoot.updateAllData();
+                    }
                 }
                 Connections {
                     target: DwlService
@@ -1611,7 +1943,7 @@ Item {
                 }
                 Connections {
                     target: I3.workspaces
-                    enabled: (CompositorService.isSway || CompositorService.isScroll)
+                    enabled: (CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle)
                     function onValuesChanged() {
                         delegateRoot.updateAllData();
                     }
