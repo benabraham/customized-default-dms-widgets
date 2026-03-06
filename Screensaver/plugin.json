@@ -1,0 +1,16 @@
+{
+    "id": "screensaver",
+    "name": "Screensaver",
+    "description": "Multi-stage DDC brightness dimming for OLED burn-in protection",
+    "version": "1.0.0",
+    "author": "srb",
+    "type": "daemon",
+    "capabilities": ["brightness", "idle", "oled"],
+    "component": "./Screensaver.qml",
+    "icon": "brightness_auto",
+    "settings": "./ScreensaverSettings.qml",
+    "permissions": [
+        "settings_read",
+        "settings_write"
+    ]
+}

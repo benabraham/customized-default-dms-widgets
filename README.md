@@ -94,6 +94,24 @@ Changes:
 - **Custom text/icon colors** - Auto-contrast or manual selection for each state
 - **Flat outer edge** - Option to remove rounded corners on the screen-edge side
 
+## Screensaver
+
+OLED burn-in protection daemon using DDC/I2C hardware brightness control.
+
+Changes:
+- **Multi-stage dimming**: active → dimming → holding → blacking → black → DPMS
+- **DDC hardware brightness**: Uses I2C/DDC (independent of gamma/night light)
+- **Smooth fades**: Ease-out cubic transitions at ~2.5 FPS (within DDC limits)
+- **Auto-detect DDC device**: Falls back gracefully if no DDC device found
+- **Configurable stages**: All timeouts, brightness levels, and fade durations adjustable
+- Settings panel with:
+  - Enable/disable toggle
+  - Dim timeout (1-10 min)
+  - Dim brightness level (5-80%)
+  - Hold duration at dim (1-10 min)
+  - DPMS delay after black (1-30 min)
+  - Fade speed (3-20 sec)
+
 ## dockerManager
 
 Third-party plugin for Docker/Podman container management. See `dockerManager/README.md`.
