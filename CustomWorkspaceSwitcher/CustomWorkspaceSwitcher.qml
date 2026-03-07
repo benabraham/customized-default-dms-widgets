@@ -15,7 +15,7 @@ Item {
 
     property bool isVertical: axis?.isVertical ?? false
     property var axis: null
-    property string screenName: ""
+    property string screenName: parentScreen?.name ?? ""
     property real widgetHeight: 30
     property real barThickness: 48
     property var barConfig: null
