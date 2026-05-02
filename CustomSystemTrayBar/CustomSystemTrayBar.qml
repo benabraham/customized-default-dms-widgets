@@ -617,9 +617,7 @@ BasePill {
     }
 
     Component {
-        id: columnComp
-        Column {
-            spacing: root.iconSpacing
+        id: inlineExpandedTrayItemDelegate
 
         Item {
             property var trayItem: modelData.item
@@ -653,7 +651,7 @@ BasePill {
                 x: root.isVerticalOrientation ? Math.round((parent.width - width) / 2) : (root.reverseInlineHorizontal ? parent.width - width : 0)
                 y: root.isVerticalOrientation ? (root.reverseInlineVertical ? parent.height - height : 0) : Math.round((parent.height - height) / 2)
                 radius: Theme.cornerRadius
-                color: inlineTrayItemArea.containsMouse ? BlurService.hoverColor(Theme.widgetBaseHoverColor) : "transparent"
+                color: inlineTrayItemArea.containsMouse ? Theme.primaryHover : "transparent"
                 opacity: root.inlineExpanded ? 1 : 0
 
                 Behavior on opacity {
@@ -663,21 +661,21 @@ BasePill {
                     }
                 }
 
-                    property real shiftOffset: {
-                        if (root.draggedIndex < 0)
-                            return 0;
-                        if (index === root.draggedIndex)
-                            return 0;
-                        const dragIdx = root.draggedIndex;
-                        const dropIdx = root.dropTargetIndex;
-                        const shiftAmount = root.trayItemSize + root.iconSpacing;
-                        if (dropIdx < 0)
-                            return 0;
-                        if (dragIdx < dropIdx && index > dragIdx && index <= dropIdx)
-                            return -shiftAmount;
-                        if (dragIdx > dropIdx && index >= dropIdx && index < dragIdx)
-                            return shiftAmount;
-                        return 0;
+                IconImage {
+                    id: inlineIconImg
+                    anchors.centerIn: parent
+                    width: root.configuredIconSize
+                    height: root.configuredIconSize
+                    source: iconSource
+                    asynchronous: true
+                    smooth: true
+                    mipmap: true
+                    visible: status === Image.Ready
+                    layer.enabled: root.trayIconTintEnabled
+                    layer.effect: MultiEffect {
+                        saturation: root.trayIconSaturation
+                        colorization: root.trayIconColorization
+                        colorizationColor: root.trayIconTintColor
                     }
                 }
 
@@ -726,18 +724,11 @@ BasePill {
         }
     }
 
-                    Rectangle {
-                        id: visualContent
-                        width: root.trayItemSize
-                        height: root.trayItemSize
-                        anchors.centerIn: parent
-                        radius: Theme.cornerRadius
-                        color: trayItemArea.containsMouse ? Theme.primaryHover : "transparent"
-                        border.width: dragHandler.dragging ? 2 : 0
-                        border.color: Theme.primary
-                        opacity: dragHandler.dragging ? 0.8 : 1.0
+    Component {
+        id: verticalMainTrayItemDelegate
 
         Item {
+            id: verticalDelegateRoot
             property var trayItem: modelData.item
             property string itemKey: modelData.key
             property string iconSource: root.trayIconSourceFor(trayItem)
@@ -753,7 +744,7 @@ BasePill {
                     return 0;
                 const dragIdx = root.draggedIndex;
                 const dropIdx = root.dropTargetIndex;
-                const shiftAmount = root.trayItemSize;
+                const shiftAmount = root.trayItemSize + root.iconSpacing;
                 if (dropIdx < 0)
                     return 0;
                 if (dragIdx < dropIdx && index > dragIdx && index <= dropIdx)
@@ -763,17 +754,16 @@ BasePill {
                 return 0;
             }
 
-                        IconImage {
-                            id: iconImg
-                            anchors.centerIn: parent
-                            width: root.configuredIconSize
-                            height: root.configuredIconSize
-                            source: delegateRoot.iconSource
-                            asynchronous: true
-                            smooth: true
-                            mipmap: true
-                            visible: status === Image.Ready
-                        }
+            transform: Translate {
+                y: verticalDelegateRoot.shiftOffset
+                Behavior on y {
+                    enabled: !root.suppressShiftAnimation
+                    NumberAnimation {
+                        duration: 150
+                        easing.type: Easing.OutCubic
+                    }
+                }
+            }
 
             Item {
                 id: dragHandler
@@ -797,7 +787,7 @@ BasePill {
                 height: root.trayItemSize
                 anchors.centerIn: parent
                 radius: Theme.cornerRadius
-                color: trayItemArea.containsMouse ? BlurService.hoverColor(Theme.widgetBaseHoverColor) : "transparent"
+                color: trayItemArea.containsMouse ? Theme.primaryHover : "transparent"
                 border.width: dragHandler.dragging ? 2 : 0
                 border.color: Theme.primary
                 opacity: dragHandler.dragging ? 0.8 : 1.0
@@ -809,9 +799,9 @@ BasePill {
                 IconImage {
                     id: iconImg
                     anchors.centerIn: parent
-                    width: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
-                    height: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
-                    source: iconSource
+                    width: root.configuredIconSize
+                    height: root.configuredIconSize
+                    source: verticalDelegateRoot.iconSource
                     asynchronous: true
                     smooth: true
                     mipmap: true
@@ -892,25 +882,13 @@ BasePill {
                     root.showForTrayItem(trayItem, visualContent, parentScreen, root.isAtBottom, root.isVerticalOrientation, root.axis);
                 }
 
-                            const axisOffset = mouse.y - dragHandler.dragStartPos.y;
-                            dragHandler.dragAxisOffset = axisOffset;
-                            const itemSize = root.trayItemSize + root.iconSpacing;
-                            const slotOffset = Math.round(axisOffset / itemSize);
-                            const newTargetIndex = Math.max(0, Math.min(root.mainBarItems.length - 1, index + slotOffset));
-                            if (newTargetIndex !== root.dropTargetIndex) {
-                                root.dropTargetIndex = newTargetIndex;
-                            }
-                        }
-
-                        onClicked: mouse => {
-                            if (dragHandler.dragging)
-                                return;
-                            if (mouse.button !== Qt.RightButton)
-                                return;
-                            if (!delegateRoot.trayItem?.hasMenu)
-                                return;
-                            root.menuOpen = false;
-                            root.showForTrayItem(delegateRoot.trayItem, visualContent, parentScreen, root.isAtBottom, root.isVerticalOrientation, root.axis);
+                onPositionChanged: mouse => {
+                    if (dragHandler.longPressing && !dragHandler.dragging) {
+                        const distance = Math.abs(mouse.y - dragHandler.dragStartPos.y);
+                        if (distance > 5) {
+                            dragHandler.dragging = true;
+                            root.draggedIndex = index;
+                            root.dropTargetIndex = root.draggedIndex;
                         }
                     }
                     if (!dragHandler.dragging)
@@ -918,7 +896,7 @@ BasePill {
 
                     const axisOffset = mouse.y - dragHandler.dragStartPos.y;
                     dragHandler.dragAxisOffset = axisOffset;
-                    const itemSize = root.trayItemSize;
+                    const itemSize = root.trayItemSize + root.iconSpacing;
                     const slotOffset = Math.round(axisOffset / itemSize);
                     const newTargetIndex = Math.max(0, Math.min(root.mainBarItems.length - 1, index + slotOffset));
                     if (newTargetIndex !== root.dropTargetIndex) {
