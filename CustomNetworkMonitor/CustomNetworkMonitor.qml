@@ -51,7 +51,7 @@ BasePill {
 
                 DankIcon {
                     name: "network_check"
-                    size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)
+                    size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
                     color: Theme.widgetTextColor
                     anchors.horizontalCenter: parent.horizontalCenter
                 }
@@ -65,7 +65,7 @@ BasePill {
                             return (rate / 1024).toFixed(0) + "K";
                         return (rate / (1024 * 1024)).toFixed(0) + "M";
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                     font.features: {
                         "tnum": 1
                     }
@@ -82,7 +82,7 @@ BasePill {
                             return (rate / 1024).toFixed(0) + "K";
                         return (rate / (1024 * 1024)).toFixed(0) + "M";
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                     font.features: {
                         "tnum": 1
                     }
@@ -99,7 +99,7 @@ BasePill {
 
                 DankIcon {
                     name: "network_check"
-                    size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.noBackground)
+                    size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
                     color: Theme.widgetTextColor
                     anchors.verticalCenter: parent.verticalCenter
                 }
@@ -110,7 +110,7 @@ BasePill {
 
                     StyledText {
                         text: "↓"
-                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                         font.features: {
                             "tnum": 1
                         }
@@ -119,7 +119,7 @@ BasePill {
 
                     StyledText {
                         text: root.formatNetworkSpeed(DgopService.networkRxRate)
-                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                         font.features: {
                             "tnum": 1
                         }
@@ -131,7 +131,7 @@ BasePill {
 
                         StyledTextMetrics {
                             id: rxBaseline
-                            font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                            font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                             font.features: {
                                 "tnum": 1
                             }
@@ -148,7 +148,7 @@ BasePill {
 
                     StyledText {
                         text: "↑"
-                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                         font.features: {
                             "tnum": 1
                         }
@@ -157,7 +157,7 @@ BasePill {
 
                     StyledText {
                         text: root.formatNetworkSpeed(DgopService.networkTxRate)
-                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                        font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                         font.features: {
                             "tnum": 1
                         }
@@ -169,7 +169,7 @@ BasePill {
 
                         StyledTextMetrics {
                             id: txBaseline
-                            font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                            font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                             font.features: {
                                 "tnum": 1
                             }

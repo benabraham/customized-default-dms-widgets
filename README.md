@@ -4,8 +4,8 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-02-23
-**Base commit:** `912e3bdf` (dms-greeter: Enable greetd via dms greeter install all-in-one cmd)
+**Last synced:** 2026-05-02
+**Base commit:** `c1cbd099` (settings: fix semvar signal moved to different service)
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
 ## CustomFocusedApp

@@ -17,7 +17,7 @@ BasePill {
     property int availableWidth: 400
     readonly property int maxNormalWidth: 99999
     readonly property int maxCompactWidth: 288
-    readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
+    property Toplevel activeWindow: null
     property var activeDesktopEntry: null
     property bool isHovered: mouseArea.containsMouse
     property bool isAutoHideBar: false
@@ -55,8 +55,60 @@ BasePill {
         return 0;
     }
 
+    function updateActiveWindow() {
+        const active = ToplevelManager.activeToplevel;
+
+        if (!active) {
+            if (activeWindow) {
+                if (CompositorService.isNiri) {
+                    if (NiriService.currentOutput === (parentScreen?.name ?? ""))
+                        activeWindow = null;
+                } else {
+                    const alive = ToplevelManager.toplevels?.values;
+                    if (alive && !Array.from(alive).some(t => t === activeWindow))
+                        activeWindow = null;
+                }
+            }
+            return;
+        }
+
+        if (!parentScreen || CompositorService.filterCurrentDisplay([active], parentScreen?.name)?.length > 0) {
+            activeWindow = active;
+        } else if (activeWindow) {
+            const alive = ToplevelManager.toplevels?.values;
+            if (alive && !Array.from(alive).some(t => t === activeWindow))
+                activeWindow = null;
+        }
+    }
+
     Component.onCompleted: {
+        updateActiveWindow();
         updateDesktopEntry();
+    }
+
+    Connections {
+        target: ToplevelManager
+        function onActiveToplevelChanged() {
+            if (!CompositorService.isNiri)
+                root.updateActiveWindow();
+        }
+    }
+
+    Connections {
+        target: CompositorService
+        function onToplevelsChanged() {
+            root.updateActiveWindow();
+        }
+    }
+
+    Connections {
+        target: CompositorService.isNiri ? NiriService : null
+        function onWindowsChanged() {
+            root.updateActiveWindow();
+        }
+        function onCurrentOutputChanged() {
+            root.updateActiveWindow();
+        }
     }
 
     Connections {
@@ -134,25 +186,21 @@ BasePill {
     }
     readonly property bool hasWindowsOnCurrentWorkspace: {
         if (CompositorService.isNiri) {
-            let currentWorkspaceId = null;
-            for (var i = 0; i < NiriService.allWorkspaces.length; i++) {
-                const ws = NiriService.allWorkspaces[i];
-                if (ws.is_focused) {
-                    currentWorkspaceId = ws.id;
-                    break;
-                }
-            }
-
-            if (!currentWorkspaceId) {
+            if (!activeWindow || !(activeWindow.title || activeWindow.appId))
                 return false;
-            }
-
-            const workspaceWindows = NiriService.windows.filter(w => w.workspace_id === currentWorkspaceId);
-            return workspaceWindows.length > 0 && activeWindow && activeWindow.title;
+            if (NiriService.currentOutput !== (parentScreen?.name ?? ""))
+                return true;
+            const focusedWin = NiriService.windows.find(w => w.is_focused);
+            if (!focusedWin)
+                return false;
+            const screenWsIds = new Set(
+                NiriService.allWorkspaces.filter(ws => ws.output === parentScreen.name).map(ws => ws.id)
+            );
+            return screenWsIds.has(focusedWin.workspace_id);
         }
 
         if (CompositorService.isHyprland) {
-            if (!Hyprland.focusedWorkspace || !activeWindow || !activeWindow.title) {
+            if (!Hyprland.focusedWorkspace || !activeWindow || !(activeWindow.title || activeWindow.appId)) {
                 return false;
             }
 
@@ -172,7 +220,7 @@ BasePill {
             }
         }
 
-        return activeWindow && activeWindow.title;
+        return activeWindow && (activeWindow.title || activeWindow.appId);
     }
 
     width: hasWindowsOnCurrentWorkspace ? (isVerticalOrientation ? barThickness : visualWidth) : 0
@@ -206,7 +254,7 @@ BasePill {
                 smooth: true
                 mipmap: true
                 asynchronous: true
-                layer.enabled: activeWindow && activeWindow.appId === "org.quickshell"
+                layer.enabled: activeWindow && (activeWindow.appId === "org.quickshell" || activeWindow.appId === "com.danklinux.dms")
                 layer.smooth: true
                 layer.mipmap: true
                 layer.effect: MultiEffect {
@@ -314,7 +362,7 @@ BasePill {
                             return "";
                         return Paths.getAppName(activeWindow.appId, activeDesktopEntry);
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                     color: Theme.widgetTextColor
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
@@ -325,7 +373,7 @@ BasePill {
 
                 StyledText {
                     text: "•"
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                     color: Theme.outlineButton
                     anchors.verticalCenter: parent.verticalCenter
                     visible: false  // Patched: no dot with icon
@@ -335,12 +383,17 @@ BasePill {
                     id: titleText
                     text: {
                         const title = activeWindow && activeWindow.title ? activeWindow.title : "";
+                        const appName = appText.text;
+                        if (compactMode && (!title || title === appName))
+                            return title || appName;
                         if (!root.stripAppName)
                             return title;
-                        const appName = appText.text;
-                        return root.stripAppNameFromTitle(title, appName);
+                        const stripped = root.stripAppNameFromTitle(title, appName);
+                        if (compactMode && !stripped)
+                            return appName;
+                        return stripped;
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale)
+                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
                     color: Theme.widgetTextColor
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
