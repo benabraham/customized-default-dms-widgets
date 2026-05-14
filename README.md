@@ -4,8 +4,8 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-05-02
-**Base commit:** `c1cbd099` (settings: fix semvar signal moved to different service)
+**Last synced:** 2026-05-14
+**Base commit:** `4bb3dd83` (flake: expose `mkDmsShell` and `buildDmsPkgs` via lib output)
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
 ## CustomFocusedApp
