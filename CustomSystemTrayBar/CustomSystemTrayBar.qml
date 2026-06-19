@@ -1273,13 +1273,7 @@ BasePill {
                 fallbackOffset: 6
                 targetColor: Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
                 targetRadius: Theme.cornerRadius
-                sourceRect.antialiasing: true
-                sourceRect.smooth: true
-                shadowEnabled: Theme.elevationEnabled && SettingsData.popoutElevationEnabled && !BlurService.enabled
-                layer.smooth: true
-                layer.textureSize: Qt.size(Math.round(width * overflowMenu.dpr * 2), Math.round(height * overflowMenu.dpr * 2))
-                layer.textureMirroring: ShaderEffectSource.MirrorVertically
-                layer.samples: 4
+                shadowEnabled: Theme.elevationEnabled && SettingsData.popoutElevationEnabled
             }
 
             Rectangle {
@@ -1723,11 +1717,7 @@ BasePill {
                         fallbackOffset: 6
                         targetColor: Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
                         targetRadius: Theme.cornerRadius
-                        sourceRect.antialiasing: true
-                        shadowEnabled: Theme.elevationEnabled && SettingsData.popoutElevationEnabled && !BlurService.enabled
-                        layer.smooth: true
-                        layer.textureSize: Qt.size(Math.round(width * menuWindow.dpr), Math.round(height * menuWindow.dpr))
-                        layer.textureMirroring: ShaderEffectSource.MirrorVertically
+                        shadowEnabled: Theme.elevationEnabled && SettingsData.popoutElevationEnabled
                     }
 
                     Rectangle {
