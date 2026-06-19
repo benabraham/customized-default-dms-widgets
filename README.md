@@ -4,9 +4,23 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-05-14
-**Base commit:** `4bb3dd83` (flake: expose `mkDmsShell` and `buildDmsPkgs` via lib output)
+**Last synced:** 2026-06-19
+**Base commit:** `4203148c` (ci: add settings index check to pre-commit) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
+
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `7e0f789` = `upstream/master` + 1 fork DDC commit, which is the running build).
+
+### Applied in this sync (since `4bb3dd83`)
+- **CustomSystemTrayBar** — `ElevationShadow` API change: removed `sourceRect.*` and `layer.*` overrides (component was rewritten to a shader-based SDF pipeline; the stale props made the plugin fail to load).
+- **CustomFocusedApp** — `29f19b07` tooltip position fix (`mapToGlobal`→`mapToItem(null, …)`).
+- **CustomRunningApps** — `29f19b07` tooltip/context-menu position fix + `df41ae4a` blurred-tooltip fix (`onHoveredItemChanged` + `Component.onDestruction` hover cleanup).
+- **CustomWorkspaceSwitcher** — `79fe9560` niri scroll/drag fix (use workspace `.id` not `.idx` for `NiriService` calls).
+
+### Skipped (incompatible with customizations)
+- `1c1ab1c7` "text rendering" — in the widgets it's only semicolon reformatting + unused-import removal; real change is in a Theme singleton.
+- `e3de54c9` optional app grouping — conflicts with CustomWorkspaceSwitcher's "no grouping" design.
+- `68410e88` workspace color customization — CustomWorkspaceSwitcher has its own PluginService-based color system.
+- `fb5198fd` ext-ws→`WindowManager` — only affects the `useExtWorkspace` path, which is disabled on niri.
 
 ## CustomFocusedApp
 
