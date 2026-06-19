@@ -19,7 +19,8 @@ No build/lint/test commands - QML plugins are loaded directly by DMS at runtime.
 
 ## Code Conventions
 
-- JavaScript in QML: no semicolons, arrow functions, template literals, single quotes
+- **Follow upstream DMS style, not personal/global style rules.** These plugins are modified copies of DMS widgets and must stay diff-friendly against upstream. In particular: **use semicolons** in QML JavaScript (DMS style), even though the global personal style guide says no semicolons — the global rule does NOT apply here.
+- JavaScript in QML: semicolons, arrow functions, template literals, single quotes (matching DMS)
 - Property bindings for reactive state propagation
 - Event-driven updates with debouncing where needed
 - Status colors from Theme: `Theme.primary` (running), `Theme.warning` (paused), `Theme.error`
