@@ -267,6 +267,7 @@ BasePill {
                 Row {
                     id: mediaInfo
                     spacing: Theme.spacingXS
+                    anchors.verticalCenter: parent.verticalCenter
                     layoutDirection: root.reverseOrder ? Qt.RightToLeft : Qt.LeftToRight
 
                     Item {

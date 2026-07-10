@@ -4,23 +4,35 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-06-19
-**Base commit:** `4203148c` (ci: add settings index check to pre-commit) — `upstream/master` tip
+**Last synced:** 2026-07-10
+**Base commit:** `c44ffae7` (fix(media): resolve monochrome album art accents) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `7e0f789` = `upstream/master` + 1 fork DDC commit, which is the running build).
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `0e8e2c65` = `upstream/master` + 1 fork DDC commit, which is the running build).
 
-### Applied in this sync (since `4bb3dd83`)
-- **CustomSystemTrayBar** — `ElevationShadow` API change: removed `sourceRect.*` and `layer.*` overrides (component was rewritten to a shader-based SDF pipeline; the stale props made the plugin fail to load).
-- **CustomFocusedApp** — `29f19b07` tooltip position fix (`mapToGlobal`→`mapToItem(null, …)`).
-- **CustomRunningApps** — `29f19b07` tooltip/context-menu position fix + `df41ae4a` blurred-tooltip fix (`onHoveredItemChanged` + `Component.onDestruction` hover cleanup).
-- **CustomWorkspaceSwitcher** — `79fe9560` niri scroll/drag fix (use workspace `.id` not `.idx` for `NiriService` calls).
+### Applied in this sync (since `4203148c`)
+- **CustomMedia** — `52ed7194` fix: missing `anchors.verticalCenter` on the `mediaInfo` Row.
+- **CustomNetworkMonitor** — `093acdbf` spacing-token sweep: hardcoded `2`/`4` → `Theme.spacingXXS`/`Theme.spacingXS`.
+- **CustomRunningApps** — close-button simplification: `BlurService.borderWidth`/`.borderColor` used directly (enabled-check moved inside the service); `"transparent"` → `Theme.withAlpha(..., 0)` for smoother hover animation.
+- **CustomSystemTrayBar** —
+  - Cosmetic sweep: `Theme.outlineHeavy` replacing hardcoded `Qt.rgba(Theme.outline, 0.2)`, `Theme.spacingXXS`, `closeWithAction()` indirection removed, hover `"transparent"` → `Theme.withAlpha(Theme.primaryHover, 0)`.
+  - `fefc0afa` menu boundary clamping: overflow/context menus now clamp against `maskX/Y/Width/Height` instead of raw screen bounds, plus `Region` masks so menu content areas are included in the popup hit region.
+  - `HyprlandFocusGrab` → `DankFocusGrab` migration (fixes Hyprland focus-stealing bug #2577), wired through the `KeyboardFocus` singleton (`KeyboardFocus.keyboardFocus()`/`.wantsGrab()`/`.barWindows`) — this also closes a pre-existing gap where the file had hand-rolled focus logic bypassing that singleton entirely.
+  - `6bee1b2c` HoverMode hook functions added (`hoverTriggerAtGlobalPoint`, `openHoverAtGlobalPoint`) — purely additive.
+- **CustomWorkspaceSwitcher** —
+  - `effectiveScreenName` simplified to `BarWidgetService.getFocusedScreenName()`, replacing the manual per-compositor switch (incidentally fixes focus-follow for Mango, which the old switch never had a case for).
+  - Sway/Hyprland named-workspace correctness: stripped `<num>:<name>` prefix, stable ordering (numbered first, named after by name), safe dispatch for named workspaces (`workspace "name"` / `workspace name:x`), Hyprland special-workspace filtering.
+  - Stable placeholder/slot pooling (`_placeholderPool`, `_hyprSlotPool`) so ScriptModel reuses delegate identity across workspace churn instead of recreating pills (reduces animation jitter); `onCompositorChanged` resets both pools.
+  - `DankColorAnimation` swap for the pill's background-color transition (premultiplied-alpha tween instead of plain `ColorAnimation`), applied on top of our own PluginService-based color system — `SettingsData.workspace*ColorMode` is unrelated to us and was not touched.
 
-### Skipped (incompatible with customizations)
-- `1c1ab1c7` "text rendering" — in the widgets it's only semicolon reformatting + unused-import removal; real change is in a Theme singleton.
-- `e3de54c9` optional app grouping — conflicts with CustomWorkspaceSwitcher's "no grouping" design.
-- `68410e88` workspace color customization — CustomWorkspaceSwitcher has its own PluginService-based color system.
-- `fb5198fd` ext-ws→`WindowManager` — only affects the `useExtWorkspace` path, which is disabled on niri.
+### Skipped (incompatible with customizations, or not applicable)
+- Per-monitor "unfocused monitor appearance" color refactor (`effectiveColorMode`/`effectiveCustomColor`/`workspaceUnfocusedMonitor*`) — CustomWorkspaceSwitcher has its own PluginService-based color system; `SettingsData.workspace*ColorMode` isn't used here at all.
+- CustomFocusedApp's new `showIcon` setting + horizontal-icon width recalculation — superseded by our existing "icon + title, unlimited width" customization, which predates and already covers this.
+- CustomMedia's prev/next hover-color fix — doesn't apply; we already use a different color scheme (`Theme.primaryHover`) there.
+
+### Known pre-existing issues (found during this sync, not fixed — out of scope)
+- **CustomWorkspaceSwitcher: dwl/mango dead code.** `CompositorService.isDwl` and the `DwlService` singleton no longer exist upstream (renamed to `isMango`/`MangoService` some time before this sync's base commit). Every `CompositorService.isDwl` branch and `case "dwl"` in this file is therefore dead — Mango users get no workspace switching from this widget except the one path (`effectiveScreenName`) fixed incidentally above. Needs a dedicated dwl→mango rename pass.
+- **CustomWorkspaceSwitcher: named sway workspaces + app icons.** `getWorkspaceIcons` still keys off `.num`, so a purely-named sway workspace (`num === -1`) won't show its per-app icons. This is a DMS-only custom feature with no upstream equivalent to port, so it wasn't touched.
 
 ## CustomFocusedApp
 
