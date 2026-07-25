@@ -1216,13 +1216,8 @@ BasePill {
 
                     if (root.isVerticalOrientation) {
                         const edge = root.axis?.edge;
-                        if (edge === "left") {
-                            const targetX = overflowMenu.anchorPos.x;
-                            return Math.max(left, Math.min(right, targetX));
-                        } else {
-                            const targetX = overflowMenu.anchorPos.x - alignedWidth;
-                            return Math.max(left, Math.min(right, targetX));
-                        }
+                        const targetX = edge === "left" ? overflowMenu.anchorPos.x : overflowMenu.anchorPos.x - alignedWidth;
+                        return Math.max(10, Math.min(overflowMenu.width - alignedWidth - 10, targetX));
                     } else {
                         const want = overflowMenu.anchorPos.x - alignedWidth / 2;
                         return Math.max(left, Math.min(right, want));
@@ -1237,13 +1232,8 @@ BasePill {
                         const want = overflowMenu.anchorPos.y - alignedHeight / 2;
                         return Math.max(top, Math.min(bottom, want));
                     } else {
-                        if (root.isAtBottom) {
-                            const targetY = overflowMenu.anchorPos.y - alignedHeight;
-                            return Math.max(top, Math.min(bottom, targetY));
-                        } else {
-                            const targetY = overflowMenu.anchorPos.y;
-                            return Math.max(top, Math.min(bottom, targetY));
-                        }
+                        const targetY = root.isAtBottom ? overflowMenu.anchorPos.y - alignedHeight : overflowMenu.anchorPos.y;
+                        return Math.max(10, Math.min(overflowMenu.height - alignedHeight - 10, targetY));
                     }
                 })(), overflowMenu.dpr)
 
@@ -1642,7 +1632,11 @@ BasePill {
                     id: trayMenuContainer
 
                     readonly property real rawWidth: Math.min(500, Math.max(250, menuColumn.implicitWidth + Theme.spacingS * 2))
-                    readonly property real rawHeight: Math.max(40, menuColumn.implicitHeight + Theme.spacingS * 2)
+                    readonly property real rawHeight: {
+                        const desiredHeight = Math.max(40, menuColumn.implicitHeight + Theme.spacingS * 2);
+                        const maxHeight = Math.max(40, menuWindow.maskHeight - 20);
+                        return Math.min(desiredHeight, maxHeight);
+                    }
 
                     readonly property real alignedWidth: Theme.px(rawWidth, menuWindow.dpr)
                     readonly property real alignedHeight: Theme.px(rawHeight, menuWindow.dpr)
@@ -1656,13 +1650,8 @@ BasePill {
 
                             if (menuRoot.isVertical) {
                                 const edge = menuRoot.axis?.edge;
-                                if (edge === "left") {
-                                    const targetX = menuWindow.anchorPos.x;
-                                    return Math.max(left, Math.min(right, targetX));
-                                } else {
-                                    const targetX = menuWindow.anchorPos.x - alignedWidth;
-                                    return Math.max(left, Math.min(right, targetX));
-                                }
+                                const targetX = edge === "left" ? menuWindow.anchorPos.x : menuWindow.anchorPos.x - alignedWidth;
+                                return Math.max(10, Math.min(menuWindow.width - alignedWidth - 10, targetX));
                             } else {
                                 const want = menuWindow.anchorPos.x - alignedWidth / 2;
                                 return Math.max(left, Math.min(right, want));
@@ -1677,13 +1666,8 @@ BasePill {
                                 const want = menuWindow.anchorPos.y - alignedHeight / 2;
                                 return Math.max(top, Math.min(bottom, want));
                             } else {
-                                if (menuRoot.isAtBottom) {
-                                    const targetY = menuWindow.anchorPos.y - alignedHeight;
-                                    return Math.max(top, Math.min(bottom, targetY));
-                                } else {
-                                    const targetY = menuWindow.anchorPos.y;
-                                    return Math.max(top, Math.min(bottom, targetY));
-                                }
+                                const targetY = menuRoot.isAtBottom ? menuWindow.anchorPos.y - alignedHeight : menuWindow.anchorPos.y;
+                                return Math.max(10, Math.min(menuWindow.height - alignedHeight - 10, targetY));
                             }
                         })(), menuWindow.dpr)
 
@@ -1742,225 +1726,232 @@ BasePill {
                         }
                     }
 
-                    Column {
-                        id: menuColumn
+                    DankFlickable {
+                        id: menuFlickable
+                        anchors.fill: parent
+                        anchors.margins: Theme.spacingS
+                        contentWidth: width
+                        contentHeight: menuColumn.implicitHeight
+                        clip: true
+                        interactive: contentHeight > height
 
-                        width: parent.width - Theme.spacingS * 2
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        anchors.top: parent.top
-                        anchors.topMargin: Theme.spacingS
-                        spacing: 1
+                        Column {
+                            id: menuColumn
 
-                        Rectangle {
-                            visible: entryStack.count === 0
-                            width: parent.width
-                            height: 28
-                            radius: Theme.cornerRadius
-                            color: visibilityToggleArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.surfaceContainer, 0)
-
-                            StyledText {
-                                anchors.left: parent.left
-                                anchors.leftMargin: Theme.spacingS
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: menuRoot.trayItem?.id || "Unknown"
-                                font.pixelSize: Theme.fontSizeSmall
-                                color: Theme.surfaceTextMedium
-                                elide: Text.ElideMiddle
-                                width: parent.width - Theme.spacingS * 2 - 24
-                            }
-
-                            DankIcon {
-                                anchors.right: parent.right
-                                anchors.rightMargin: Theme.spacingS
-                                anchors.verticalCenter: parent.verticalCenter
-                                name: SessionData.isHiddenTrayId(root.getTrayItemKey(menuRoot.trayItem)) ? "visibility" : "visibility_off"
-                                size: 16
-                                color: Theme.widgetTextColor
-                            }
-
-                            MouseArea {
-                                id: visibilityToggleArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: {
-                                    const itemKey = root.getTrayItemKey(menuRoot.trayItem);
-                                    if (!itemKey)
-                                        return;
-                                    if (SessionData.isHiddenTrayId(itemKey)) {
-                                        SessionData.showTrayId(itemKey);
-                                    } else {
-                                        SessionData.hideTrayId(itemKey);
-                                    }
-                                    menuRoot.close();
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            visible: entryStack.count === 0
-                            width: parent.width
-                            height: 1
-                            color: Theme.outlineHeavy
-                        }
-
-                        Rectangle {
-                            visible: entryStack.count > 0
-                            width: parent.width
-                            height: 28
-                            radius: Theme.cornerRadius
-                            color: backArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.surfaceContainer, 0)
-
-                            Row {
-                                anchors.left: parent.left
-                                anchors.leftMargin: Theme.spacingS
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: Theme.spacingXS
-
-                                DankIcon {
-                                    name: "arrow_back"
-                                    size: 16
-                                    color: Theme.widgetTextColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-
-                                StyledText {
-                                    text: I18n.tr("Back")
-                                    font.pixelSize: Theme.fontSizeSmall
-                                    color: Theme.widgetTextColor
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                            }
-
-                            MouseArea {
-                                id: backArea
-                                anchors.fill: parent
-                                hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
-                                onClicked: menuRoot.goBack()
-                            }
-                        }
-
-                        Rectangle {
-                            visible: entryStack.count > 0
-                            width: parent.width
-                            height: 1
-                            color: Theme.outlineHeavy
-                        }
-
-                        Repeater {
-                            model: entryStack.count ? (subOpener.children ? subOpener.children : (menuRoot.topEntry()?.children || [])) : rootOpener.children
+                            width: menuFlickable.width
+                            spacing: 1
 
                             Rectangle {
-                                property var menuEntry: modelData
+                                visible: entryStack.count === 0
+                                width: parent.width
+                                height: 28
+                                radius: Theme.cornerRadius
+                                color: visibilityToggleArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.surfaceContainer, 0)
 
-                                width: menuColumn.width
-                                height: menuEntry?.isSeparator ? 1 : 28
-                                radius: menuEntry?.isSeparator ? 0 : Theme.cornerRadius
-                                color: {
-                                    if (menuEntry?.isSeparator)
-                                        return Theme.outlineHeavy;
-                                    return itemArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.surfaceContainer, 0);
+                                StyledText {
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: Theme.spacingS
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: menuRoot.trayItem?.id || "Unknown"
+                                    font.pixelSize: Theme.fontSizeSmall
+                                    color: Theme.surfaceTextMedium
+                                    elide: Text.ElideMiddle
+                                    width: parent.width - Theme.spacingS * 2 - (Theme.iconSizeSmall + Theme.spacingS)
+                                }
+
+                                DankIcon {
+                                    anchors.right: parent.right
+                                    anchors.rightMargin: Theme.spacingS
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    name: SessionData.isHiddenTrayId(root.getTrayItemKey(menuRoot.trayItem)) ? "visibility" : "visibility_off"
+                                    size: Theme.iconSizeSmall
+                                    color: Theme.widgetTextColor
                                 }
 
                                 MouseArea {
-                                    id: itemArea
+                                    id: visibilityToggleArea
                                     anchors.fill: parent
                                     hoverEnabled: true
-                                    enabled: !menuEntry?.isSeparator && (menuEntry?.enabled !== false)
                                     cursorShape: Qt.PointingHandCursor
-
                                     onClicked: {
-                                        if (!menuEntry || menuEntry.isSeparator)
+                                        const itemKey = root.getTrayItemKey(menuRoot.trayItem);
+                                        if (!itemKey)
                                             return;
-                                        if (menuEntry.hasChildren) {
-                                            menuRoot.showSubMenu(menuEntry);
-                                            return;
+                                        if (SessionData.isHiddenTrayId(itemKey)) {
+                                            SessionData.showTrayId(itemKey);
+                                        } else {
+                                            SessionData.hideTrayId(itemKey);
                                         }
-
-                                        if (typeof menuEntry.activate === "function") {
-                                            menuEntry.activate();
-                                        } else if (typeof menuEntry.triggered === "function") {
-                                            menuEntry.triggered();
-                                        }
-                                        pendingActionCloseTimer.restart();
+                                        menuRoot.close();
                                     }
                                 }
+                            }
+
+                            Rectangle {
+                                visible: entryStack.count === 0
+                                width: parent.width
+                                height: 1
+                                color: Theme.outlineHeavy
+                            }
+
+                            Rectangle {
+                                visible: entryStack.count > 0
+                                width: parent.width
+                                height: 28
+                                radius: Theme.cornerRadius
+                                color: backArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.surfaceContainer, 0)
 
                                 Row {
                                     anchors.left: parent.left
                                     anchors.leftMargin: Theme.spacingS
-                                    anchors.right: parent.right
-                                    anchors.rightMargin: Theme.spacingS
                                     anchors.verticalCenter: parent.verticalCenter
                                     spacing: Theme.spacingXS
-                                    visible: !menuEntry?.isSeparator
 
-                                    Rectangle {
-                                        width: 16
-                                        height: 16
+                                    DankIcon {
+                                        name: "arrow_back"
+                                        size: Theme.iconSizeSmall
+                                        color: Theme.widgetTextColor
                                         anchors.verticalCenter: parent.verticalCenter
-                                        visible: menuEntry?.buttonType !== undefined && menuEntry.buttonType !== 0
-                                        radius: menuEntry?.buttonType === 2 ? 8 : 2
-                                        border.width: 1
-                                        border.color: Theme.outline
-                                        color: "transparent"
-
-                                        Rectangle {
-                                            anchors.centerIn: parent
-                                            width: parent.width - 6
-                                            height: parent.height - 6
-                                            radius: parent.radius - 3
-                                            color: Theme.primary
-                                            visible: menuEntry?.checkState === 2
-                                        }
-
-                                        DankIcon {
-                                            anchors.centerIn: parent
-                                            name: "check"
-                                            size: 10
-                                            color: Theme.primaryText
-                                            visible: menuEntry?.buttonType === 1 && menuEntry?.checkState === 2
-                                        }
-                                    }
-
-                                    Item {
-                                        width: 16
-                                        height: 16
-                                        anchors.verticalCenter: parent.verticalCenter
-                                        visible: (menuEntry?.icon ?? "") !== ""
-
-                                        Image {
-                                            anchors.fill: parent
-                                            source: menuEntry?.icon || ""
-                                            sourceSize.width: 16
-                                            sourceSize.height: 16
-                                            fillMode: Image.PreserveAspectFit
-                                            smooth: true
-                                        }
                                     }
 
                                     StyledText {
-                                        text: menuEntry?.text || ""
+                                        text: I18n.tr("Back")
                                         font.pixelSize: Theme.fontSizeSmall
-                                        color: (menuEntry?.enabled !== false) ? Theme.surfaceText : Theme.surfaceTextMedium
-                                        elide: Text.ElideRight
+                                        color: Theme.widgetTextColor
                                         anchors.verticalCenter: parent.verticalCenter
-                                        width: Math.max(150, parent.width - 64)
-                                        wrapMode: Text.NoWrap
+                                    }
+                                }
+
+                                MouseArea {
+                                    id: backArea
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: menuRoot.goBack()
+                                }
+                            }
+
+                            Rectangle {
+                                visible: entryStack.count > 0
+                                width: parent.width
+                                height: 1
+                                color: Theme.outlineHeavy
+                            }
+
+                            Repeater {
+                                model: entryStack.count ? (subOpener.children ? subOpener.children : (menuRoot.topEntry()?.children || [])) : rootOpener.children
+
+                                Rectangle {
+                                    property var menuEntry: modelData
+
+                                    width: menuColumn.width
+                                    height: menuEntry?.isSeparator ? 1 : 28
+                                    radius: menuEntry?.isSeparator ? 0 : Theme.cornerRadius
+                                    color: {
+                                        if (menuEntry?.isSeparator)
+                                            return Theme.outlineHeavy;
+                                        return itemArea.containsMouse ? Theme.primaryHover : Theme.withAlpha(Theme.surfaceContainer, 0);
                                     }
 
-                                    Item {
-                                        width: 16
-                                        height: 16
-                                        anchors.verticalCenter: parent.verticalCenter
+                                    MouseArea {
+                                        id: itemArea
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        enabled: !menuEntry?.isSeparator && (menuEntry?.enabled !== false)
+                                        cursorShape: Qt.PointingHandCursor
 
-                                        DankIcon {
-                                            anchors.centerIn: parent
-                                            name: "chevron_right"
-                                            size: 14
-                                            color: Theme.widgetTextColor
-                                            visible: menuEntry?.hasChildren ?? false
+                                        onClicked: {
+                                            if (!menuEntry || menuEntry.isSeparator)
+                                                return;
+                                            if (menuEntry.hasChildren) {
+                                                menuRoot.showSubMenu(menuEntry);
+                                                return;
+                                            }
+
+                                            if (typeof menuEntry.activate === "function") {
+                                                menuEntry.activate();
+                                            } else if (typeof menuEntry.triggered === "function") {
+                                                menuEntry.triggered();
+                                            }
+                                            pendingActionCloseTimer.restart();
+                                        }
+                                    }
+
+                                    Row {
+                                        anchors.left: parent.left
+                                        anchors.leftMargin: Theme.spacingS
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: Theme.spacingS
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        spacing: Theme.spacingXS
+                                        visible: !menuEntry?.isSeparator
+
+                                        Rectangle {
+                                            width: Theme.iconSizeSmall
+                                            height: Theme.iconSizeSmall
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: menuEntry?.buttonType !== undefined && menuEntry.buttonType !== 0
+                                            radius: menuEntry?.buttonType === 2 ? width / 2 : 2
+                                            border.width: 1
+                                            border.color: Theme.outline
+                                            color: "transparent"
+
+                                            Rectangle {
+                                                anchors.centerIn: parent
+                                                width: parent.width - 6
+                                                height: parent.height - 6
+                                                radius: parent.radius - 3
+                                                color: Theme.primary
+                                                visible: menuEntry?.checkState === 2
+                                            }
+
+                                            DankIcon {
+                                                anchors.centerIn: parent
+                                                name: "check"
+                                                size: Theme.iconSizeSmall - 6
+                                                color: Theme.primaryText
+                                                visible: menuEntry?.buttonType === 1 && menuEntry?.checkState === 2
+                                            }
+                                        }
+
+                                        Item {
+                                            width: Theme.iconSizeSmall
+                                            height: Theme.iconSizeSmall
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            visible: (menuEntry?.icon ?? "") !== ""
+
+                                            Image {
+                                                anchors.fill: parent
+                                                source: menuEntry?.icon || ""
+                                                sourceSize.width: Theme.iconSizeSmall
+                                                sourceSize.height: Theme.iconSizeSmall
+                                                fillMode: Image.PreserveAspectFit
+                                                smooth: true
+                                            }
+                                        }
+
+                                        StyledText {
+                                            text: menuEntry?.text || ""
+                                            font.pixelSize: Theme.fontSizeSmall
+                                            color: (menuEntry?.enabled !== false) ? Theme.surfaceText : Theme.surfaceTextMedium
+                                            elide: Text.ElideRight
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: Math.max(150, parent.width - 64)
+                                            wrapMode: Text.NoWrap
+                                        }
+
+                                        Item {
+                                            width: Theme.iconSizeSmall
+                                            height: Theme.iconSizeSmall
+                                            anchors.verticalCenter: parent.verticalCenter
+
+                                            DankIcon {
+                                                anchors.centerIn: parent
+                                                name: "chevron_right"
+                                                size: Theme.iconSizeSmall - 2
+                                                color: Theme.widgetTextColor
+                                                visible: menuEntry?.hasChildren ?? false
+                                            }
                                         }
                                     }
                                 }

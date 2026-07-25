@@ -4,13 +4,26 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-07-10
-**Base commit:** `c44ffae7` (fix(media): resolve monochrome album art accents) — `upstream/master` tip
+**Last synced:** 2026-07-25
+**Base commit:** `8bb73963` (nix: sync flake.lock to dank-qml-common submodule) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `0e8e2c65` = `upstream/master` + 1 fork DDC commit, which is the running build).
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `815a6bac` = `upstream/master` + 2 fork DDC commits, which is the running build).
 
-### Applied in this sync (since `4203148c`)
+### Applied in this sync (since `c44ffae7`)
+- **CustomMedia** —
+  - `fe1a783e`/`dc924618` stable-metadata centralisation: the local `_stableTitle`/`_stableArtist`/`_syncMeta()` block (26 lines) deleted in favour of `MprisController.stableTitle`/`.stableArtist`; all four `activePlayer.next()` call sites routed through `MprisController.next()`. Our `canGoNext`/`canGoPrevious` scroll guards are unaffected.
+  - `2986e354`/`cdaedad9`/`c3fa7b2e` title-scroll rewrite (#2863): the infinite `SequentialAnimation` replaced by `Timer`-driven `stepScroll()` that rides `CavaService.valuesChanged` ticks when the visualizer is live. A running `NumberAnimation` commits a frame every vsync, so two unsynchronized tick sources nearly doubled the surface commit rate. Also gated on window visibility + `_isPlaying`, and `x` rounded to whole pixels.
+  - **AudioVisualization** — *adapted, not ported.* Our copy predates upstream's shader rewrite (`bandsA`/`bandsB` vectors), so only the two ideas carry over: a `live` gate (`visible && Window.window?.visible && isPlaying`) on the `Ref` loader, fallback timer and `CavaService` connection; and levels quantized to 1/32 with identical frames dropped before assigning `barHeights`.
+- **CustomSystemTrayBar** —
+  - `fb2dbced` menu overflow: `rawHeight` capped at `maskHeight - 20` and `menuColumn` wrapped in a `DankFlickable` (`interactive: contentHeight > height`), so long tray menus scroll instead of running off-screen. Our `Theme.primaryHover` hover colours and `SessionData.isHiddenTrayId` visibility logic preserved; upstream's auto-overflow / "Keep in Bar" branch is absent from our copy and was **not** introduced.
+  - `1402d231` vbar menu positioning: vertical-orientation branches clamp against window `width`/`height` instead of `maskX`/`maskY` bounds (4 blocks — overflow menu x/y, tray menu x/y).
+  - Icon-size token sweep: hardcoded `16`/`14`/`10` → `Theme.iconSizeSmall` and derivations; checkbox `radius: … ? 8 : 2` → `width / 2`.
+- **CustomWorkspaceSwitcher** —
+  - `4fb69957` Hyprland re-focus fix (#2830): `Connections` on `Hyprland` `rawEvent` calling `updateAllData()` for `activewindow`/`activewindowv2`. **Inert on niri** (`enabled: CompositorService.isHyprland`) — taken for diff-parity with upstream.
+  - `296b3a3d` (mango dispatch socket) **not applicable** — our copy has no `mmsg`/overview-toggle button.
+
+### Applied in the 2026-07-10 sync (since `4203148c`)
 - **CustomMedia** — `52ed7194` fix: missing `anchors.verticalCenter` on the `mediaInfo` Row.
 - **CustomNetworkMonitor** — `093acdbf` spacing-token sweep: hardcoded `2`/`4` → `Theme.spacingXXS`/`Theme.spacingXS`.
 - **CustomRunningApps** — close-button simplification: `BlurService.borderWidth`/`.borderColor` used directly (enabled-check moved inside the service); `"transparent"` → `Theme.withAlpha(..., 0)` for smoother hover animation.

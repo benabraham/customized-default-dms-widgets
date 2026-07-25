@@ -9,12 +9,13 @@ Item {
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property bool hasActiveMedia: activePlayer !== null
     readonly property bool isPlaying: hasActiveMedia && activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
+    readonly property bool live: visible && (Window.window?.visible ?? false) && isPlaying
 
     width: 20
     height: Theme.iconSize
 
     Loader {
-        active: isPlaying
+        active: root.live
 
         sourceComponent: Component {
             Ref {
@@ -31,7 +32,7 @@ Item {
     Timer {
         id: fallbackTimer
 
-        running: !CavaService.cavaAvailable && isPlaying
+        running: !CavaService.cavaAvailable && root.live
         interval: 500
         repeat: true
         onTriggered: {
@@ -41,30 +42,29 @@ Item {
 
     Connections {
         target: CavaService
+        enabled: root.live
+        // Levels are quantized to 1/32 and identical frames dropped — cava ticks far faster than
+        // the bars visibly change, and every assignment forces a surface commit (#2863).
         function onValuesChanged() {
-            if (!root.isPlaying) {
-                root.barHeights = [root.minBarHeight, root.minBarHeight, root.minBarHeight, root.minBarHeight, root.minBarHeight, root.minBarHeight];
-                return;
-            }
-
             const newHeights = [];
+            let changed = false;
             for (let i = 0; i < 6; i++) {
-                if (CavaService.values.length <= i) {
-                    newHeights.push(root.minBarHeight);
-                    continue;
-                }
-
-                const rawLevel = CavaService.values[i];
-                if (rawLevel <= 0) {
-                    newHeights.push(root.minBarHeight);
-                } else if (rawLevel >= 100) {
-                    newHeights.push(root.maxBarHeight);
-                } else {
-                    newHeights.push(root.minBarHeight + Math.sqrt(rawLevel * 0.01) * root.heightRange);
-                }
+                const rawLevel = CavaService.values.length > i ? CavaService.values[i] : 0;
+                const level = rawLevel <= 0 ? 0 : rawLevel >= 100 ? 1 : Math.sqrt(rawLevel * 0.01);
+                const height = root.minBarHeight + Math.round(level * 32) / 32 * root.heightRange;
+                if (height !== root.barHeights[i])
+                    changed = true;
+                newHeights.push(height);
             }
+            if (!changed)
+                return;
             root.barHeights = newHeights;
         }
+    }
+
+    onLiveChanged: {
+        if (!live)
+            barHeights = [minBarHeight, minBarHeight, minBarHeight, minBarHeight, minBarHeight, minBarHeight];
     }
 
     Row {
