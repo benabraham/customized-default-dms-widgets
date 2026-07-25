@@ -15,7 +15,11 @@ No build/lint/test commands - QML plugins are loaded directly by DMS at runtime.
 
 **Testing changes:**
 1. Edit QML files
-2. Reload shell via `quickshell --reload` or restart
+2. `dms restart` to restart the running shell and pick up the changes
+
+**Checking QML syntax without a restart:** `qmlformat <file> >/dev/null` parses the file and fails
+loudly on syntax errors. `qmllint` also works but floods the output with unresolved-import warnings,
+since `qs.*` imports only resolve inside the running DMS.
 
 ## Code Conventions
 
@@ -23,17 +27,23 @@ No build/lint/test commands - QML plugins are loaded directly by DMS at runtime.
 - JavaScript in QML: semicolons, arrow functions, template literals, single quotes (matching DMS)
 - Property bindings for reactive state propagation
 - Event-driven updates with debouncing where needed
-- Status colors from Theme: `Theme.primary` (running), `Theme.warning` (paused), `Theme.error`
 
 ## Architecture
 
-**Plugin structure:** Each plugin has `PluginName.qml` + `plugin.json` metadata.
+**Plugin structure:** Each plugin has `PluginName.qml` + `plugin.json` metadata. `plugin.json`'s
+`type` field is `widget` for bar widgets and `daemon` for headless plugins (only `Screensaver`).
 
 **Key services:**
 - `PluginService` - Plugin data persistence (`loadPluginData`, `savePluginData`)
-- `CompositorService` - Window/workspace management
+- `SessionData` - DMS-owned per-session state (tray order, hidden tray IDs) — shared with built-in widgets, unlike `PluginService`
+- `SettingsData` - User-facing DMS settings (scroll modes, visualizer toggle, workspace options)
+- `CompositorService` - Window/workspace management; `NiriService` for niri-specific calls (`focusWindow`)
 - `Theme` - Theming system (colors, spacing, fonts)
 - `DesktopEntries` - Application metadata
+
+**PluginService key ≠ directory name.** Every plugin keys its data by its own directory name
+*except* `CustomSystemTrayBar`, which uses `"SortedSystemTray"` (a leftover from when it did regex
+sorting). Changing that string orphans the user's saved icon size and spacing.
 
 **Data flow:**
 ```
@@ -48,8 +58,8 @@ Key customizations to preserve are documented in README.md and `.claude/commands
 
 ## Plugin-Specific Notes
 
-- **CustomRunningApps** - Most complex; has scroll switching, middle-click close, context menu, dynamic title width
-- **CustomSystemTrayBar** - Regex-based icon sorting via PluginService
-- **CustomWorkspaceSwitcher** - Individual app icons (no grouping), click-to-focus
+- **CustomRunningApps** - Most complex; has scroll switching, middle-click close, context menu, dynamic title width with a root-level debounce cache that survives delegate recreation. `Theme.warning` vs `Theme.primary` distinguishes tabbed from normal column frames.
+- **CustomSystemTrayBar** - Long-press drag-and-drop icon reordering, persisted to `SessionData.trayItemOrder` via `setTrayItemOrder()`. Icon size and spacing come from `PluginService` under the `"SortedSystemTray"` key; hide/show uses `SessionData.hideTrayId`/`showTrayId`.
+- **CustomWorkspaceSwitcher** - Individual app icons (no grouping — see the `// Custom:` markers), click-to-focus via `NiriService.focusWindow`
 - **Screensaver** - Daemon plugin; multi-stage DDC brightness dimming for OLED burn-in protection (not a bar widget)
 - **dockerManager** - Independent plugin with own architecture; see `dockerManager/CLAUDE.md`
