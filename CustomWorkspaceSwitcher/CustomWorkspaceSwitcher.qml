@@ -201,22 +201,6 @@ Item {
         return ws.num !== -1 ? ws.num : ws.name;
     }
 
-    function escapeSwayWorkspaceName(name) {
-        return String(name ?? "").replace(/\\/g, "\\\\").replace(/"/g, "\\\"");
-    }
-
-    function dispatchSwayWorkspace(ws) {
-        if (!ws)
-            return;
-        try {
-            if (ws.num !== undefined && ws.num !== -1) {
-                I3.dispatch(`workspace number ${ws.num}`);
-            } else if (ws.name) {
-                I3.dispatch(`workspace "${escapeSwayWorkspaceName(ws.name)}"`);
-            }
-        } catch (_) {}
-    }
-
     function getSwayActiveWorkspace() {
         if (!root.screenName || SettingsData.workspaceFollowFocus) {
             const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
@@ -829,7 +813,7 @@ Item {
         case "sway":
         case "scroll":
         case "miracle":
-            dispatchSwayWorkspace(data);
+            CompositorService.dispatchSwayWorkspace(data);
             break;
         }
     }
@@ -935,7 +919,7 @@ Item {
                 return;
             }
 
-            dispatchSwayWorkspace(realWorkspaces[nextIndex]);
+            CompositorService.dispatchSwayWorkspace(realWorkspaces[nextIndex]);
         }
     }
 
@@ -1543,7 +1527,7 @@ Item {
                             } else if (CompositorService.isDwl && modelData?.tag !== undefined) {
                                 DwlService.switchToTag(root.screenName, modelData.tag);
                             } else if ((CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) && modelData?.num !== undefined) {
-                                root.dispatchSwayWorkspace(modelData);
+                                CompositorService.dispatchSwayWorkspace(modelData);
                             }
                         } else if (mouse.button === Qt.RightButton) {
                             if (CompositorService.isNiri) {

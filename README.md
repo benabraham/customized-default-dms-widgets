@@ -4,13 +4,21 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-07-25
-**Base commit:** `8bb73963` (nix: sync flake.lock to dank-qml-common submodule) — `upstream/master` tip
+**Last synced:** 2026-08-01
+**Base commit:** `ef191bab` (tailscale: add missing ID) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `815a6bac` = `upstream/master` + 2 fork DDC commits, which is the running build).
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `21dc24de` = `upstream/master` + fork DDC commits, which is the running build).
 
-### Applied in this sync (since `c44ffae7`)
+### Applied in this sync (since `8bb73963`)
+Only one upstream commit touched our six widgets: `c67b1850` "qs: large sweep of dead code removals".
+
+- **CustomWorkspaceSwitcher** — `c67b1850`: local `escapeSwayWorkspaceName()`/`dispatchSwayWorkspace()` (15 lines) deleted in favour of `CompositorService.dispatchSwayWorkspace()`; 3 call sites redirected. Body is byte-identical to the service's, which is present in the running build (`CompositorService.qml:1094`). Sway/scroll/miracle paths only — inert on niri, taken for diff-parity. `I3` import still needed elsewhere in the file.
+- **CustomNetworkMonitor** — `c67b1850` **not applicable.** Upstream swapped `formatNetworkSpeed()` for `Format.formatRate()`, but (a) our formatter *is* the customization (figure spaces `\u2007`, `"0 KB/s"`/`"<1 KB/s"`, 3-char right-aligned rounding), and (b) the new `import "../../../Common/Format.js"` is relative to `quickshell/Modules/DankBar/Widgets/` and cannot resolve from the plugins directory.
+- **Plugins setting components** — `c67b1850` also refactored `quickshell/Modules/Plugins/*Setting.qml` (`findSettings()` → `QmlUtils.findSettings()`). **No public API change**, and all 11 local slider forks (`SteppedSliderSetting`/`RealSliderSetting`/`LabeledSliderSetting`) carry their own `findSettings()` — unaffected. Same relative-import blocker applies, so not ported.
+- No changes to CustomFocusedApp, CustomMedia, CustomRunningApps, CustomSystemTrayBar.
+
+### Applied in the 2026-07-25 sync (since `c44ffae7`)
 - **CustomMedia** —
   - `fe1a783e`/`dc924618` stable-metadata centralisation: the local `_stableTitle`/`_stableArtist`/`_syncMeta()` block (26 lines) deleted in favour of `MprisController.stableTitle`/`.stableArtist`; all four `activePlayer.next()` call sites routed through `MprisController.next()`. Our `canGoNext`/`canGoPrevious` scroll guards are unaffected.
   - `2986e354`/`cdaedad9`/`c3fa7b2e` title-scroll rewrite (#2863): the infinite `SequentialAnimation` replaced by `Timer`-driven `stepScroll()` that rides `CavaService.valuesChanged` ticks when the visualizer is live. A running `NumberAnimation` commits a frame every vsync, so two unsynchronized tick sources nearly doubled the surface commit rate. Also gated on window visibility + `_isPlaying`, and `x` rounded to whole pixels.
