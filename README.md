@@ -4,13 +4,26 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-08-01
-**Base commit:** `ef191bab` (tailscale: add missing ID) — `upstream/master` tip
+**Last synced:** 2026-08-19
+**Base commit:** `327aad21` (fix(frame): restore overlay connected chrome) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `21dc24de` = `upstream/master` + fork DDC commits, which is the running build).
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `c1894a32` = `upstream/master` + fork DDC commits). That branch is the running build: `dms run` resolves through `~/.local/bin/dms` to the Nix store path `dms-shell-1.6-beta+date=2026-08-19_c1894a3`.
 
-### Applied in this sync (since `8bb73963`)
+### Applied in this sync (since `ef191bab`)
+Three upstream commits touched our six widgets; all three were ported.
+
+- **CustomSystemTrayBar** — `34626070` "fix(tray): don't dismiss click-opened tray menus from hover controller (#2979)". Real bug fix here, not just diff-parity: the running build's `TrayMenuManager.closeHoverMenus()` skips any menu whose `openedByHover !== true`, and our fork had no such property, so `DankBarHoverController` could never dismiss a hover-opened tray menu. Added `openedByHover` to the tray-menu component and threaded a `byHover` argument through both `showForTrayItem()` overloads; `openHoverAtGlobalPoint()` passes `true`, every click path leaves it `undefined`.
+- **CustomSystemTrayBar** — `2baf0482` "feat(tray): add IPC action to open tray menus (#2701)". Added the `Connections { target: TrayMenuManager }` block with `onOpenTrayMenuRequested`. `claimMenuRequest()`/`findTrayItem()` both exist in the running build. Independent of our drag-and-drop reordering and of `SessionData.trayItemOrder`; upstream's auto-overflow / "Keep in Bar" is still absent here, as intended.
+- **CustomRunningApps** — `b0b9b615` "dock/apps: support minimize". Ported in full across both delegate branches:
+  - `isMinimized` readonly property + `opacity: 0.4` on the icon, Steam fallback icon and letter fallback.
+  - `.activate()` → `CompositorService.activateToplevel()` (scroll switching, group cycling) and `CompositorService.toggleToplevel()` (single-window click).
+  - Window context menu rewritten from a fixed 100×32 close-only rect into a 120-wide `Column` with a conditional Minimize/Restore row plus Close.
+  - Context-menu `yPos` for bottom bars stopped using the hardcoded `32` and now reads `windowContextMenuLoader.item.menuHeight`. **This is the part that actually changes behaviour on this machine** — minimize itself is inert on niri, since `DankCommon/Common/Compositor.qml` returns `supportsMinimize: false` whenever `NIRI_SOCKET` is set, which makes `canMinimize()` false and hides the Minimize row.
+  - Our customizations were untouched: `appIconSize`, the `PluginService` colour modes via `root.getTextColor(isFocused)`, the debug overlays, the root-level title debounce cache.
+- No changes to CustomFocusedApp, CustomMedia, CustomNetworkMonitor, CustomWorkspaceSwitcher, or `AudioVisualization.qml`.
+
+### Applied in the 2026-08-01 sync (since `8bb73963`)
 Only one upstream commit touched our six widgets: `c67b1850` "qs: large sweep of dead code removals".
 
 - **CustomWorkspaceSwitcher** — `c67b1850`: local `escapeSwayWorkspaceName()`/`dispatchSwayWorkspace()` (15 lines) deleted in favour of `CompositorService.dispatchSwayWorkspace()`; 3 call sites redirected. Body is byte-identical to the service's, which is present in the running build (`CompositorService.qml:1094`). Sway/scroll/miracle paths only — inert on niri, taken for diff-parity. `I3` import still needed elsewhere in the file.
