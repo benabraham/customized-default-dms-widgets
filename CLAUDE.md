@@ -21,6 +21,14 @@ No build/lint/test commands - QML plugins are loaded directly by DMS at runtime.
 loudly on syntax errors. `qmllint` also works but floods the output with unresolved-import warnings,
 since `qs.*` imports only resolve inside the running DMS.
 
+Two files are **false positives** for `qmlformat`: `CustomRunningApps.qml` and
+`CustomWorkspaceSwitcher.qml` exit 1 with a bare `Failed to parse` even on an untouched checkout
+(`git show HEAD:<file>` reproduces it), for reasons unrelated to syntax — `qmllint` parses both
+fine and emits line-accurate diagnostics throughout. For those two, use
+`qmllint <file> 2>&1 | grep '^Error:'` instead and compare the error set before and after an edit;
+the only pre-existing errors are `syntax.duplicate-ids` from the two delegate branches, which
+upstream's `RunningApps.qml` has as well.
+
 ## Code Conventions
 
 - **Follow upstream DMS style, not personal/global style rules.** These plugins are modified copies of DMS widgets and must stay diff-friendly against upstream. In particular: **use semicolons** in QML JavaScript (DMS style), even though the global personal style guide says no semicolons — the global rule does NOT apply here.
