@@ -4,13 +4,20 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-08-19
-**Base commit:** `327aad21` (fix(frame): restore overlay connected chrome) — `upstream/master` tip
+**Last synced:** 2026-08-22
+**Base commit:** `f89b21a0` (inputs: consistent usage of Dank* variants, bump qml-common with blink timeout) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `c1894a32` = `upstream/master` + fork DDC commits). That branch is the running build: `dms run` resolves through `~/.local/bin/dms` to the Nix store path `dms-shell-1.6-beta+date=2026-08-19_c1894a3`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `3ed3de71` = `upstream/master` + fork DDC commits). **The running build is older:** `dms run` resolves through `~/.local/bin/dms` to the Nix store path `dms-shell-1.6-beta+date=2026-08-19_c1894a3` (= `327aad21` + DDC), which predates `FocusedWindowContextMenu.qml` — see the CustomFocusedApp note below.
 
-### Applied in this sync (since `ef191bab`)
+### Applied in this sync (since `327aad21`)
+Two upstream commits touched our six widgets; both were ported.
+
+- **CustomFocusedApp** — `a669253c` "feat(bar): add focused window details popout (#3139)". Left-click on the pill now opens upstream's `FocusedWindowContextMenu` popout (window details + PID) via a new `focusedWindowPopoutLoader`; `cursorShape: Qt.PointingHandCursor`; added `resolveSortedWindow()`/`resolveActiveWindowPid()` (niri PID comes from `NiriService.windows[].pid`, added to the service in the same upstream commit). Plugin imports `qs.Modules.DankBar.Widgets` to reach the popout type. Icon + title layout, unlimited width and the strip-app-name setting are untouched. **Requires a DMS build containing `a669253c`** (`quickshell/Modules/DankBar/Widgets/FocusedWindowContextMenu.qml` + `NiriService` `pid`): on the current `c1894a3` store path the plugin fails to load until `dms` is rebuilt from the fork branch.
+- **CustomWorkspaceSwitcher** — `90c5f65b` "fix(workspaces/hyprland): recover workspace mapping on monitor hotplug". The hardcoded `{id: 1, name: "1"}` fallback for the per-monitor Hyprland filter replaced by `hyprlandMonitorWorkspaces()`, which falls back to `Hyprland.monitors[].activeWorkspace` (#3133). Hyprland-only path — inert on niri, ported for diff-parity. Individual-icon (`// Custom:`) code, `PluginService` colours and spacing presets untouched.
+- No changes to CustomMedia, CustomNetworkMonitor, CustomRunningApps, CustomSystemTrayBar, or `AudioVisualization.qml`.
+
+### Applied in the 2026-08-19 sync (since `ef191bab`)
 Three upstream commits touched our six widgets; all three were ported.
 
 - **CustomSystemTrayBar** — `34626070` "fix(tray): don't dismiss click-opened tray menus from hover controller (#2979)". Real bug fix here, not just diff-parity: the running build's `TrayMenuManager.closeHoverMenus()` skips any menu whose `openedByHover !== true`, and our fork had no such property, so `DankBarHoverController` could never dismiss a hover-opened tray menu. Added `openedByHover` to the tray-menu component and threaded a `byHover` argument through both `showForTrayItem()` overloads; `openHoverAtGlobalPoint()` passes `true`, every click path leaves it `undefined`.
@@ -76,6 +83,7 @@ Changes:
 - App name text hidden (`visible: false`)
 - Separator dot hidden
 - Icon displayed alongside title only
+- Left-click opens upstream's `FocusedWindowContextMenu` popout (window details + PID), as in upstream since `a669253c`
 - Settings panel with:
   - "Strip App Name from Title" - Smart removal of app name, version numbers, instance markers, and brand words from titles
 
