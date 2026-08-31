@@ -278,7 +278,7 @@ BasePill {
                         }
 
                         anchors.verticalCenter: parent.verticalCenter
-                        width: textWidth > 0 ? textWidth : mediaText.implicitWidth
+                        width: textWidth > 0 ? textWidth : mediaText.implicitTextWidth
                         height: root.widgetThickness
                         visible: {
                             const size = widgetData?.mediaSize !== undefined ? widgetData.mediaSize : root.pluginMediaSize;
@@ -295,124 +295,14 @@ BasePill {
                             }
                         }
 
-                        Item {
-                            id: textClip
+                        ScrollingText {
+                            id: mediaText
                             anchors.fill: parent
-                            clip: true
-
-                            StyledText {
-                                id: mediaText
-                                readonly property bool onScreen: Window.window?.visible ?? false
-                                property bool needsScrolling: implicitWidth > textContainer.width && SettingsData.scrollTitleEnabled
-                                readonly property bool scrollActive: needsScrolling && textContainer.visible && onScreen && root._isPlaying
-                                readonly property real maxScrollOffset: Math.max(0, implicitWidth - textContainer.width + 5)
-                                property real scrollOffset: 0
-                                property int scrollDirection: 1
-                                property real scrollHoldMs: 2000
-                                property real textShift: 0
-
-                                function resetScroll() {
-                                    scrollOffset = 0;
-                                    scrollDirection = 1;
-                                    scrollHoldMs = 2000;
-                                }
-
-                                function stepScroll(deltaMs) {
-                                    if (scrollHoldMs > 0) {
-                                        scrollHoldMs -= deltaMs;
-                                        return;
-                                    }
-                                    const next = scrollOffset + scrollDirection * deltaMs / 60;
-                                    if (next >= maxScrollOffset) {
-                                        scrollOffset = maxScrollOffset;
-                                        scrollDirection = -1;
-                                        scrollHoldMs = 2000;
-                                        return;
-                                    }
-                                    if (next <= 0) {
-                                        scrollOffset = 0;
-                                        scrollDirection = 1;
-                                        scrollHoldMs = 2000;
-                                        return;
-                                    }
-                                    scrollOffset = next;
-                                }
-
-                                onScrollActiveChanged: {
-                                    if (!scrollActive)
-                                        resetScroll();
-                                }
-
-                                anchors.verticalCenter: parent.verticalCenter
-                                text: textContainer.displayText
-                                font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                                color: Theme.widgetTextColor
-                                wrapMode: Text.NoWrap
-                                x: Math.round((needsScrolling ? -scrollOffset : 0) + textShift)
-                                opacity: 1
-
-                                onTextChanged: {
-                                    resetScroll();
-                                    textShift = 0;
-                                    textChangeAnimation.restart();
-                                }
-
-                                // Timer stepping, not NumberAnimation — a running animation commits frames every vsync (#2863).
-                                // When cava frames are already driving renders, scroll steps ride those ticks instead —
-                                // two unsynchronized tick sources nearly double the surface commit rate (#2863).
-                                Timer {
-                                    id: scrollTimer
-
-                                    interval: 60
-                                    repeat: true
-                                    running: mediaText.scrollActive
-                                    onTriggered: {
-                                        if (cavaTickWatch.running)
-                                            return;
-                                        mediaText.stepScroll(60);
-                                    }
-                                }
-
-                                Timer {
-                                    id: cavaTickWatch
-                                    interval: 150
-                                }
-
-                                Connections {
-                                    target: CavaService
-                                    enabled: mediaText.scrollActive && SettingsData.audioVisualizerEnabled && CavaService.cavaAvailable
-                                    function onValuesChanged() {
-                                        cavaTickWatch.restart();
-                                        mediaText.stepScroll(40);
-                                    }
-                                }
-
-                                SequentialAnimation {
-                                    id: textChangeAnimation
-
-                                    ParallelAnimation {
-                                        NumberAnimation {
-                                            target: mediaText
-                                            property: "opacity"
-                                            from: 0.7
-                                            to: 1
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.BezierSpline
-                                            easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
-                                        }
-
-                                        NumberAnimation {
-                                            target: mediaText
-                                            property: "textShift"
-                                            from: 4
-                                            to: 0
-                                            duration: Theme.shortDuration
-                                            easing.type: Easing.BezierSpline
-                                            easing.bezierCurve: Theme.expressiveCurves.emphasizedDecel
-                                        }
-                                    }
-                                }
-                            }
+                            text: textContainer.displayText
+                            color: Theme.widgetTextColor
+                            font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                            active: root._isPlaying
+                            animateTextChange: true
                         }
 
                         MouseArea {

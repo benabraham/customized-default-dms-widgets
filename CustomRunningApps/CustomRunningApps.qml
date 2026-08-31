@@ -1219,7 +1219,10 @@ BasePill {
 
                         MouseArea {
                             id: mouseArea
-                            anchors.fill: parent
+                            y: root.isVerticalOrientation ? 0 : -root.topMargin
+                            x: root.isVerticalOrientation ? -root.leftMargin : 0
+                            width: parent.width + (root.isVerticalOrientation ? root.leftMargin + root.rightMargin : 0)
+                            height: parent.height + (root.isVerticalOrientation ? 0 : root.topMargin + root.bottomMargin)
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
                             acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
@@ -1713,7 +1716,10 @@ BasePill {
 
                     MouseArea {
                         id: mouseArea
-                        anchors.fill: parent
+                        y: root.isVerticalOrientation ? 0 : -root.topMargin
+                        x: root.isVerticalOrientation ? -root.leftMargin : 0
+                        width: parent.width + (root.isVerticalOrientation ? root.leftMargin + root.rightMargin : 0)
+                        height: parent.height + (root.isVerticalOrientation ? 0 : root.topMargin + root.bottomMargin)
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
@@ -1879,7 +1885,7 @@ BasePill {
             property string edge: "top"
 
             // New properties for bar context
-            property int triggerBarPosition: (SettingsData.barConfigs[0]?.position ?? SettingsData.Position.Top)
+            property int triggerBarPosition: (SettingsData.getPrimaryBarConfig()?.position ?? SettingsData.Position.Top)
             property real triggerBarThickness: 0
             property real triggerBarSpacing: 0
             property var triggerBarConfig: null

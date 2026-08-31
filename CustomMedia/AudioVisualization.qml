@@ -9,7 +9,7 @@ Item {
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property bool hasActiveMedia: activePlayer !== null
     readonly property bool isPlaying: hasActiveMedia && activePlayer && activePlayer.playbackState === MprisPlaybackState.Playing
-    readonly property bool live: visible && (Window.window?.visible ?? false) && isPlaying
+    readonly property bool live: visible && enabled && (Window.window?.visible ?? false) && isPlaying
 
     width: 20
     height: Theme.iconSize
@@ -28,17 +28,6 @@ Item {
     readonly property real minBarHeight: 3
     readonly property real heightRange: maxBarHeight - minBarHeight
     property var barHeights: [minBarHeight, minBarHeight, minBarHeight, minBarHeight, minBarHeight, minBarHeight]
-
-    Timer {
-        id: fallbackTimer
-
-        running: !CavaService.cavaAvailable && root.live
-        interval: 500
-        repeat: true
-        onTriggered: {
-            CavaService.values = [Math.random() * 20 + 5, Math.random() * 25 + 8, Math.random() * 22 + 6, Math.random() * 20 + 5, Math.random() * 22 + 6, Math.random() * 25 + 8];
-        }
-    }
 
     Connections {
         target: CavaService
@@ -80,14 +69,6 @@ Item {
                 radius: 1.5
                 color: Theme.primary
                 anchors.verticalCenter: parent.verticalCenter
-
-                Behavior on height {
-                    enabled: root.isPlaying && !CavaService.cavaAvailable
-                    NumberAnimation {
-                        duration: 100
-                        easing.type: Easing.Linear
-                    }
-                }
             }
         }
     }

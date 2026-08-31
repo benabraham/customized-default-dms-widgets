@@ -22,6 +22,7 @@ Item {
     property var blurBarWindow: null
     property var hyprlandOverviewLoader: null
     property var parentScreen: null
+    property real crossEdgeExtension: 0
 
     readonly property real _leftMargin: {
         if (isVertical)
@@ -44,7 +45,7 @@ Item {
     }
     readonly property real _topMargin: {
         if (!isVertical)
-            return 0;
+            return axis?.edge === "top" ? crossEdgeExtension : 0;
         root.y;
         if (!root.parent)
             return 0;
@@ -53,7 +54,7 @@ Item {
     }
     readonly property real _bottomMargin: {
         if (!isVertical)
-            return 0;
+            return axis?.edge === "bottom" ? crossEdgeExtension : 0;
         root.y;
         root.height;
         if (!root.parent || !blurBarWindow)
@@ -1177,23 +1178,40 @@ Item {
                     return 0;
                 }
 
+                readonly property var shiftSpringParams: Theme.springPreset("fast", 150)
+
+                SpringMotion {
+                    id: shiftXSpring
+                    enabled: !root.suppressShiftAnimation
+                    positionEpsilon: 0.05
+                    velocityEpsilon: 0.05
+                    stiffness: delegateRoot.shiftSpringParams.stiffness
+                    damping: delegateRoot.shiftSpringParams.damping
+                    value: delegateRoot.shiftOffset
+
+                    Component.onCompleted: snapTo(delegateRoot.shiftOffset)
+                }
+
+                SpringMotion {
+                    id: shiftYSpring
+                    enabled: !root.suppressShiftAnimation
+                    positionEpsilon: 0.05
+                    velocityEpsilon: 0.05
+                    stiffness: delegateRoot.shiftSpringParams.stiffness
+                    damping: delegateRoot.shiftSpringParams.damping
+                    value: delegateRoot.shiftOffset
+
+                    Component.onCompleted: snapTo(delegateRoot.shiftOffset)
+                }
+
+                onShiftOffsetChanged: {
+                    shiftXSpring.retarget(shiftOffset);
+                    shiftYSpring.retarget(shiftOffset);
+                }
+
                 transform: Translate {
-                    x: root.isVertical ? 0 : delegateRoot.shiftOffset
-                    y: root.isVertical ? delegateRoot.shiftOffset : 0
-                    Behavior on x {
-                        enabled: !root.suppressShiftAnimation
-                        NumberAnimation {
-                            duration: 150
-                            easing.type: Easing.OutCubic
-                        }
-                    }
-                    Behavior on y {
-                        enabled: !root.suppressShiftAnimation
-                        NumberAnimation {
-                            duration: 150
-                            easing.type: Easing.OutCubic
-                        }
-                    }
+                    x: root.isVertical ? 0 : shiftXSpring.value
+                    y: root.isVertical ? shiftYSpring.value : 0
                 }
 
                 property bool isActive: {
@@ -1369,14 +1387,12 @@ Item {
                 function getContrastingIconColor(bgColor, bgOpacity) {
                     if (bgOpacity < 0.1)
                         return Theme.widgetTextColor
-                    const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
-                    return luminance > 0.4 ? Qt.rgba(0.15, 0.15, 0.15, 1) : Qt.rgba(0.8, 0.8, 0.8, 1)
+                    return Theme.isLightColor(bgColor, 0.4) ? Qt.rgba(0.15, 0.15, 0.15, 1) : Qt.rgba(0.8, 0.8, 0.8, 1)
                 }
                 function getContrastingTextColor(bgColor, bgOpacity) {
                     if (bgOpacity < 0.1)
                         return Theme.widgetTextColor
-                    const luminance = 0.299 * bgColor.r + 0.587 * bgColor.g + 0.114 * bgColor.b
-                    return luminance > 0.4 ? Qt.rgba(0.05, 0.05, 0.05, 0.95) : Qt.rgba(0.95, 0.95, 0.95, 0.95)
+                    return Theme.isLightColor(bgColor, 0.4) ? Qt.rgba(0.05, 0.05, 0.05, 0.95) : Qt.rgba(0.95, 0.95, 0.95, 0.95)
                 }
 
                 function getTextColorForState(state) {

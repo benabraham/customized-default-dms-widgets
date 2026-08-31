@@ -494,7 +494,10 @@ BasePill {
 
                     MouseArea {
                         id: trayItemArea
-                        anchors.fill: parent
+                        y: root.isVerticalOrientation ? 0 : -root.topMargin
+                        x: root.isVerticalOrientation ? -root.leftMargin : 0
+                        width: parent.width + (root.isVerticalOrientation ? root.leftMargin + root.rightMargin : 0)
+                        height: parent.height + (root.isVerticalOrientation ? 0 : root.topMargin + root.bottomMargin)
                         hoverEnabled: true
                         acceptedButtons: Qt.LeftButton | Qt.RightButton
                         cursorShape: dragHandler.longPressing ? Qt.DragMoveCursor : Qt.PointingHandCursor
@@ -641,7 +644,7 @@ BasePill {
 
             width: root.isVerticalOrientation ? root.barThickness : (root.inlineExpanded ? root.trayItemSize : 0)
             height: root.isVerticalOrientation ? (root.inlineExpanded ? root.trayItemSize : 0) : root.barThickness
-            visible: width > 0 || height > 0
+            visible: width > 0 && height > 0
 
             Behavior on width {
                 enabled: !root.isVerticalOrientation
@@ -715,7 +718,10 @@ BasePill {
 
             MouseArea {
                 id: inlineTrayItemArea
-                anchors.fill: parent
+                y: root.isVerticalOrientation ? 0 : -root.topMargin
+                x: root.isVerticalOrientation ? -root.leftMargin : 0
+                width: parent.width + (root.isVerticalOrientation ? root.leftMargin + root.rightMargin : 0)
+                height: parent.height + (root.isVerticalOrientation ? 0 : root.topMargin + root.bottomMargin)
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 cursorShape: Qt.PointingHandCursor
@@ -850,7 +856,10 @@ BasePill {
 
             MouseArea {
                 id: trayItemArea
-                anchors.fill: parent
+                y: root.isVerticalOrientation ? 0 : -root.topMargin
+                x: root.isVerticalOrientation ? -root.leftMargin : 0
+                width: parent.width + (root.isVerticalOrientation ? root.leftMargin + root.rightMargin : 0)
+                height: parent.height + (root.isVerticalOrientation ? 0 : root.topMargin + root.bottomMargin)
                 hoverEnabled: true
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 cursorShape: dragHandler.longPressing ? Qt.DragMoveCursor : Qt.PointingHandCursor
@@ -1770,7 +1779,7 @@ BasePill {
                                     anchors.left: parent.left
                                     anchors.leftMargin: Theme.spacingS
                                     anchors.verticalCenter: parent.verticalCenter
-                                    text: menuRoot.trayItem?.id || "Unknown"
+                                    text: menuRoot.trayItem?.tooltipTitle || menuRoot.trayItem?.id || I18n.tr("Unknown")
                                     font.pixelSize: Theme.fontSizeSmall
                                     color: Theme.surfaceTextMedium
                                     elide: Text.ElideMiddle
