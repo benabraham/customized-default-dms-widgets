@@ -4,13 +4,21 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-08-31
-**Base commit:** `88750954` (fix(theme): take sun times from the local calendar day, not the UTC one (#3237)) — `upstream/master` tip
+**Last synced:** 2026-09-02
+**Base commit:** `ed9e01e4` (dock: fix tooltip guard referencing) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `10653690` = `upstream/master` + fork DDC commits). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to `dms-shell-1.6-beta+date=2026-08-31_1065369`, whose `Modules/DankBar/Widgets/*` and `Modules/Plugins/BasePill.qml` are byte-identical to `upstream/master`. `SpringMotion`, `ScrollingText`, `Theme.isLightColor`, `Theme.springPreset` and `SettingsData.getPrimaryBarConfig()` are all present. Note the Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still carries an older `c580aa2` copy — it backs `dms-debug-srv.service` and the disabled `dms.service` — so `~/.local/bin` has to stay ahead of it on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `835e927d` = `upstream/master` + fork DDC commits). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to `dms-shell-1.6-beta+date=2026-09-02_835e927`, whose `Modules/DankBar/Widgets/*` and `Modules/Plugins/BasePill.qml` are byte-identical to `upstream/master` (verified this sync). `SpringMotion`, `ScrollingText`, `Theme.isLightColor`, `Theme.springPreset` and `SettingsData.getPrimaryBarConfig()` are all present. Note the Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still carries an older `c580aa2` copy — it backs `dms-debug-srv.service` and the disabled `dms.service` — so `~/.local/bin` has to stay ahead of it on `PATH`.
 
-### Applied in this sync (since `f89b21a0`)
+### Applied in this sync (since `88750954`)
+Nothing to port. Twenty-nine upstream commits landed, but **none touched any of the six widgets we
+fork** (`FocusedApp`, `Media`, `NetworkMonitor`, `RunningApps`, `SystemTrayBar`, `WorkspaceSwitcher`)
+or `Modules/Plugins/BasePill.qml`. Upstream work went to the Dock, Dank Island, Greeter, Changelog,
+services (`IconThemeService`, `PolkitService`, `BluetoothService`, `ClipboardService`), the Go core
+and translations. `Modules/Plugins/DesktopPluginWrapper.qml` changed, but it wraps *desktop*-placed
+plugins — ours are bar widgets plus one daemon — so it does not apply.
+
+### Applied in the 2026-08-31 sync (since `f89b21a0`)
 Five upstream commits touched our widgets. `CustomNetworkMonitor` had no upstream changes.
 
 - **CustomFocusedApp / CustomRunningApps / CustomSystemTrayBar** — `ea0b158e` "bar/island: fix click targets on satellites". `MouseArea { anchors.fill: parent }` replaced by an explicit rect grown by `BasePill`'s `leftMargin`/`rightMargin`/`topMargin`/`bottomMargin`, so clicks landing in the inter-widget gap or at the bar edge still hit the pill. Single-pill `CustomFocusedApp` extends on all four sides (upstream form); the multi-delegate `CustomRunningApps` (2 `MouseArea`s) and `CustomSystemTrayBar` (3 `MouseArea`s) extend on the **cross axis only** — `x`/`width` when vertical, `y`/`height` when horizontal — because side-by-side delegates would otherwise steal each other's clicks.
