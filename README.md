@@ -4,13 +4,21 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-09-02
-**Base commit:** `ed9e01e4` (dock: fix tooltip guard referencing) — `upstream/master` tip
+**Last synced:** 2026-09-04
+**Base commit:** `c1f1da1d` (feat(island): allow hiding clock or date options in compact pill) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `835e927d` = `upstream/master` + fork DDC commits). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to `dms-shell-1.6-beta+date=2026-09-02_835e927`, whose `Modules/DankBar/Widgets/*` and `Modules/Plugins/BasePill.qml` are byte-identical to `upstream/master` (verified this sync). `SpringMotion`, `ScrollingText`, `Theme.isLightColor`, `Theme.springPreset` and `SettingsData.getPrimaryBarConfig()` are all present. Note the Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still carries an older `c580aa2` copy — it backs `dms-debug-srv.service` and the disabled `dms.service` — so `~/.local/bin` has to stay ahead of it on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `7ecf3899` = `upstream/master` + fork DDC commits). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to `dms-shell-1.7-beta+date=2026-09-04_7ecf389`, whose `Modules/DankBar/Widgets/*` and `Modules/Plugins/BasePill.qml` are byte-identical to `upstream/master` (verified this sync). `Theme.barThickness()`, `CompositorService.getScreenScale()`, `CompositorService.sortedToplevels`, `NiriService.lastFocusedWindowId`, `DankPopout.popoutClosed`, `SpringMotion`, `ScrollingText`, `Theme.isLightColor`, `Theme.springPreset` and `SettingsData.getPrimaryBarConfig()` are all present. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) now ships only the Go CLI; `dms-debug-srv.service` runs its own `dms-shell-1.7-beta+date=2026-09-04_c1f1da1` store path — `~/.local/bin` still has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `88750954`)
+### Applied in this sync (since `ed9e01e4`)
+Two of the 42 upstream commits touched our six widgets; both were ported. No changes to
+`CustomMedia`, `CustomNetworkMonitor`, `CustomSystemTrayBar`, `CustomWorkspaceSwitcher` or
+`AudioVisualization.qml`.
+
+- **CustomFocusedApp** — `9a7177f9` "fix(bar): prevent focused app widget from blanking and live-sync (#3258)". The widget used to blank on niri whenever `ToplevelManager.activeToplevel` went null (workspace switch, popout grabbing focus). Adds `isWindowAlive()` and `getNiriFocusedWindow()` helpers; when there is no active toplevel on niri it now falls back to `NiriService.windows.find(w => w.is_focused)` — or `NiriService.lastFocusedWindowId` while the details popout is open — and maps that back to a toplevel through `CompositorService.sortedToplevels[].sourceToplevel`, with an `appId`/`title` match as backup. The `if (!CompositorService.isNiri)` guard on `onActiveToplevelChanged` is gone (niri needs the signal too), `onAllWorkspacesChanged` was added, and the null-active branch now clears only when the window is dead *or* the screen's active workspace is genuinely empty. The popout trigger-position code was extracted into `syncPopoutState()` so `onActiveWindowChanged` can live-update an open popout (double-called via `Qt.callLater` to catch post-layout geometry) or `close()` it when the window goes away; a new `Connections` on `focusedWindowPopoutLoader.item` re-runs `updateActiveWindow()` on `shouldBeVisibleChanged`/`popoutClosed`. `hasWindowsOnCurrentWorkspace` uses the same helper and, with no focused window, now reports whether the screen's active workspace holds any window at all. Icon + title layout, `maxNormalWidth: 99999`, `stripAppName`/`appIconSize`/`iconTitleSpacing` are untouched.
+- **CustomRunningApps** — `5142d576` "fix(bar): centre widget content on whole pixels (#3263)". Both copies of the ad-hoc `Math.max(26 + innerPadding * 0.6, Theme.barHeight - 4 - (8 - innerPadding))` bar-thickness math replaced by upstream's new `Theme.barThickness(innerPadding, dpr)`, which rounds to whole device pixels; the DPR comes from `CompositorService.getScreenScale(parentScreen)` for the widget's own `effectiveBarThickness` and from `CompositorService.getScreenScale(contextMenuWindow.screen)` inside the window context menu. Fixes half-pixel blur on fractional-scale outputs. Spacing presets, the PluginService colour system, `appIconSize` and the title-width debounce cache are untouched.
+
+### Applied in the 2026-09-02 sync (since `88750954`)
 Nothing to port. Twenty-nine upstream commits landed, but **none touched any of the six widgets we
 fork** (`FocusedApp`, `Media`, `NetworkMonitor`, `RunningApps`, `SystemTrayBar`, `WorkspaceSwitcher`)
 or `Modules/Plugins/BasePill.qml`. Upstream work went to the Dock, Dank Island, Greeter, Changelog,
