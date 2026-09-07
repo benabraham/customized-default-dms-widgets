@@ -17,6 +17,13 @@ No build/lint/test commands - QML plugins are loaded directly by DMS at runtime.
 1. Edit QML files
 2. `dms restart` to restart the running shell and pick up the changes
 
+**Never run `dms restart` from an agent tool call.** The respawned daemon inherits the tool's
+transient stdio and process group, so the shell dies the moment the call returns — leaving the user
+with no bar. Ask the user to run it, or start it fully detached:
+`setsid nohup ~/.local/bin/dms run -d > /tmp/dms-shell.log 2>&1 < /dev/null & disown`.
+That log only carries the Go daemon's lines; `quickshell`'s stderr goes to a pipe the daemon owns,
+so QML warnings (binding loops included) are not readable this way.
+
 **Checking QML syntax without a restart:** `qmlformat <file> >/dev/null` parses the file and fails
 loudly on syntax errors. `qmllint` also works but floods the output with unresolved-import warnings,
 since `qs.*` imports only resolve inside the running DMS.

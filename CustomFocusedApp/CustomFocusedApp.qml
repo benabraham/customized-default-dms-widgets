@@ -16,8 +16,61 @@ BasePill {
     property var widgetData: null
     property bool compactMode: widgetData?.focusedWindowCompactMode !== undefined ? widgetData.focusedWindowCompactMode : SettingsData.focusedWindowCompactMode
     property int availableWidth: 400
-    readonly property int maxNormalWidth: 99999
+    // Custom: WidgetHost injects this through a duck-typed Binding (WidgetHost.qml) for any widget
+    // that declares it, plugins included — same mechanism as crossEdgeExtension. For the centre
+    // section DankBarContent feeds it the live gap between the left and right sections. Without it
+    // the pill grew unbounded and painted over — and swallowed clicks for — the side widget groups.
+    property real sectionAvailablePrimarySize: 0
+    property var barCenterSection: null
+    property var barCenterWrapper: null
+    property var barLeftSection: null
+    property var barRightSection: null
+    // Custom: width the other centre-section widgets already claim. Read from our siblings rather
+    // than from the section's own width, so the expression never depends on our width (binding loop).
+    // Each wrapper carries itemSpacing, and there are exactly as many siblings as inter-widget gaps.
+    // Our own chain is BasePill -> WidgetHost(Loader) -> wrapper Item -> CenterSection, so the
+    // sibling set is the section's children minus the wrapper we sit under.
+    readonly property real centerSiblingsWidth: {
+        const section = root.barCenterSection;
+        const wrapper = root.barCenterWrapper;
+        if (!section?.children || !wrapper)
+            return 0;
+        let total = 0;
+        for (let i = 0; i < section.children.length; i++) {
+            const child = section.children[i];
+            if (child === wrapper || !child.visible || child.width <= 0)
+                continue;
+            total += child.width + (child.itemSpacing ?? 0);
+        }
+        return total;
+    }
+    // Custom: CenterSection is the full bar width and centres its content on the bar centre, not on
+    // the gap between the side sections. The gap is off-centre whenever the two sides differ in
+    // width, so clamping to sectionAvailablePrimarySize alone still overruns the narrower side.
+    // The real limit is twice the smaller half-gap, less what the centre siblings already take.
+    readonly property bool barSectionsResolved: !!(root.barCenterSection && root.barLeftSection && root.barRightSection)
+    readonly property real centerHalfGap: {
+        if (!root.barSectionsResolved)
+            return 0;
+        const centreX = root.barCenterSection.width / 2;
+        const leftEnd = root.barLeftSection.x + root.barLeftSection.width;
+        const rightStart = root.barRightSection.x;
+        return Math.max(0, Math.min(centreX - leftEnd, rightStart - centreX));
+    }
+    readonly property int maxNormalWidth: {
+        if (root.isVerticalOrientation)
+            return 99999;
+        // A resolved-but-zero half-gap means a side section already reaches past the bar centre.
+        // Fall back to the floor then, never to the wider sectionAvailablePrimarySize.
+        if (root.barSectionsResolved)
+            return Math.max(120, Math.floor(2 * root.centerHalfGap - root.centerSiblingsWidth));
+        if (root.sectionAvailablePrimarySize > 0)
+            return Math.max(120, Math.floor(root.sectionAvailablePrimarySize - root.centerSiblingsWidth));
+        return 99999;
+    }
     readonly property int maxCompactWidth: 288
+    // Custom: keep the title inside the clamped pill; the content Item does not clip
+    readonly property real maxTitleWidth: compactMode ? 280 : Math.max(40, root.maxNormalWidth - root.horizontalPadding * 2 - root.appIconSize - root.iconTitleSpacing)
     property Toplevel activeWindow: null
     property var activeDesktopEntry: null
     property bool isHovered: mouseArea.containsMouse
@@ -478,7 +531,7 @@ BasePill {
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
                     maximumLineCount: 1
-                    width: Math.min(implicitWidth, compactMode ? 280 : 99999)
+                    width: Math.min(implicitWidth, root.maxTitleWidth)
                     visible: text.length > 0
                 }
             }
@@ -556,6 +609,64 @@ BasePill {
         }
         function onPopoutClosed() {
             root.updateActiveWindow();
+        }
+    }
+
+    // Custom: the pill has to know where the neighbouring bar sections end, and DankBarContent
+    // exposes no such property to plugin widgets, so resolve them by walking our own parent chain.
+    // Read-only: nothing here mutates DMS-owned state.
+    function findBarAncestor(name) {
+        let node = root.parent;
+        while (node) {
+            if (node.objectName === name)
+                return node;
+            node = node.parent;
+        }
+        return null;
+    }
+
+    function findBarSibling(stack, name) {
+        if (!stack?.children)
+            return null;
+        for (let i = 0; i < stack.children.length; i++) {
+            if (stack.children[i].objectName === name)
+                return stack.children[i];
+        }
+        return null;
+    }
+
+    function findCenterWrapper() {
+        let node = root.parent;
+        while (node?.parent) {
+            if (node.parent.objectName === "centerSection")
+                return node;
+            node = node.parent;
+        }
+        return null;
+    }
+
+    // root.parent is still null when Component.onCompleted fires (WidgetHost parents the item
+    // after construction), so poll briefly until the sections are reachable.
+    Timer {
+        id: barSectionAttachTimer
+        interval: 250
+        repeat: true
+        running: true
+        property int attempts: 0
+        onTriggered: {
+            attempts++;
+            if (attempts > 40) {
+                running = false;
+                return;
+            }
+            const section = root.findBarAncestor("centerSection");
+            if (!section)
+                return;
+            root.barCenterSection = section;
+            root.barCenterWrapper = root.findCenterWrapper();
+            root.barLeftSection = root.findBarSibling(section.parent, "leftSection");
+            root.barRightSection = root.findBarSibling(section.parent, "rightSection");
+            running = false;
         }
     }
 }
