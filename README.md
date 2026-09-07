@@ -4,13 +4,26 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-09-04
-**Base commit:** `c1f1da1d` (feat(island): allow hiding clock or date options in compact pill) — `upstream/master` tip
+**Last synced:** 2026-09-07
+**Base commit:** `0f565361` (fix(launcher): stop injectnig plugins into app categories) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `7ecf3899` = `upstream/master` + fork DDC commits). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to `dms-shell-1.7-beta+date=2026-09-04_7ecf389`, whose `Modules/DankBar/Widgets/*` and `Modules/Plugins/BasePill.qml` are byte-identical to `upstream/master` (verified this sync). `Theme.barThickness()`, `CompositorService.getScreenScale()`, `CompositorService.sortedToplevels`, `NiriService.lastFocusedWindowId`, `DankPopout.popoutClosed`, `SpringMotion`, `ScrollingText`, `Theme.isLightColor`, `Theme.springPreset` and `SettingsData.getPrimaryBarConfig()` are all present. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) now ships only the Go CLI; `dms-debug-srv.service` runs its own `dms-shell-1.7-beta+date=2026-09-04_c1f1da1` store path — `~/.local/bin` still has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `5c4ae943` = `upstream/master` + 2 fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to `dms-shell-1.7-beta+date=2026-09-07_5c4ae94`, and `git diff upstream/master HEAD -- Modules/DankBar/Widgets/ Modules/Plugins/BasePill.qml` is empty, so every file we fork is byte-identical to `upstream/master` (verified this sync). `NiriService.focusWindow`, `Theme.barThickness()`, `CompositorService.getScreenScale()`, `CompositorService.sortedToplevels`, `NiriService.lastFocusedWindowId`, `DankPopout.popoutClosed`, `SpringMotion`, `ScrollingText`, `Theme.isLightColor`, `Theme.springPreset` and `SettingsData.getPrimaryBarConfig()` are all present. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI; `dms-debug-srv.service` runs its own `dms-shell-1.7-beta+date=2026-09-07_0f56536` store path — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `ed9e01e4`)
+### Applied in this sync (since `c1f1da1d`)
+Exactly one of the 37 upstream commits touched our six widgets. No changes to `CustomFocusedApp`,
+`CustomMedia`, `CustomNetworkMonitor`, `CustomRunningApps`, `CustomSystemTrayBar`,
+`Modules/Plugins/BasePill.qml` or `AudioVisualization.qml`.
+
+- **CustomWorkspaceSwitcher** — `3d6e45f4` "bar: focus workspace icons on any workspace and wire island overview loader", *adapted*. Both per-icon `MouseArea`s (`rowAppMouseArea`, `colAppMouseArea`) were gated on `enabled: isActive`, so an app icon on a non-active workspace could not be clicked to focus its window; worse, on the active workspace they swallowed the press that the outer `mouseArea` needs. Upstream deletes both and hit-tests from the workspace delegate instead: new `windowIdAt(x, y)` maps the press into the icon layout and reads `childAt(...)?.windowId`, and `focusWindowAt(x, y)` focuses that window and returns `true`, which the delegate's left-button `onReleased` checks before falling through to the workspace switch. Each icon delegate now exposes `readonly property var windowId: modelData.windowId`.
+
+  **Adaptation:** upstream aliases `iconsLayout: contentRow.item`, which works because its icons are direct children of the row/column. Ours are not — the custom column layout nests them one level deeper inside `colIconsLayout` (the `ColumnLayout` that does the negative-margin overlap for the active icon), so `childAt` on the `Column` would return the wrapper `Item` and never find a `windowId`. Instead each layout component names its own container: the `Row` gets `id: rowIconsRow` + `iconsContainer: rowIconsRow`, the `Column` gets `iconsContainer: colIconsLayout`, and `contentRoot` reads `iconsLayout: contentRow.item?.iconsContainer ?? null`.
+
+  Our Hyprland branch keeps `Hyprland.dispatch(\`focuswindow address:${winId}\`)` rather than upstream's `HyprlandService.focusWindow`. Upstream also swapped its icon `MouseArea`s for `HoverHandler`s to preserve hover opacity; we need no replacement, because our icon opacity comes from the PluginService per-state colour system and never read `containsMouse`. Dropping the icons' `cursorShape: Qt.PointingHandCursor` is a no-op — the outer `mouseArea` already sets it for every non-placeholder workspace. Drag-reorder is unaffected: `wasDragging` still returns early before the left-button branch. The `// Custom:` no-grouping, `wsAppIconActive`/`wsAppIconNormal` sizing, per-state colours and spacing preset are untouched. `qmllint` error count is unchanged at 0, with two fewer each of `import`, `unqualified` and `unresolved-type` warnings from the removed code.
+
+- **Not applicable** — `fbffa410` "clock: align the horizontal time block to whole pixels" touches `Clock.qml`, which we do not fork. The other 35 commits went to the launcher, Dank Island, dock, greeter, services, the Go core and translations.
+
+### Applied in the 2026-09-04 sync (since `ed9e01e4`)
 Two of the 42 upstream commits touched our six widgets; both were ported. No changes to
 `CustomMedia`, `CustomNetworkMonitor`, `CustomSystemTrayBar`, `CustomWorkspaceSwitcher` or
 `AudioVisualization.qml`.

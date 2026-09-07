@@ -26,8 +26,9 @@ Two files are **false positives** for `qmlformat`: `CustomRunningApps.qml` and
 (`git show HEAD:<file>` reproduces it), for reasons unrelated to syntax — `qmllint` parses both
 fine and emits line-accurate diagnostics throughout. For those two, use
 `qmllint <file> 2>&1 | grep '^Error:'` instead and compare the error set before and after an edit;
-the only pre-existing errors are `syntax.duplicate-ids` from the two delegate branches, which
-upstream's `RunningApps.qml` has as well.
+`CustomRunningApps` has 6 pre-existing errors, all `syntax.duplicate-ids` from the two delegate
+branches, which upstream's `RunningApps.qml` has as well; `CustomWorkspaceSwitcher` has none, so
+any error there is yours.
 
 ## Code Conventions
 

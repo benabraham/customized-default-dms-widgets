@@ -1536,6 +1536,8 @@ Item {
                             return;
 
                         if (mouse.button === Qt.LeftButton) {
+                            if (delegateRoot.focusWindowAt(mouse.x, mouse.y))
+                                return;
                             if (root.useExtWorkspace && (modelData?.id || modelData?.name)) {
                                 ExtWorkspaceService.activateWorkspace(modelData.id || modelData.name, modelData.groupID || "");
                             } else if (CompositorService.isNiri) {
@@ -1608,6 +1610,30 @@ Item {
 
                 function updateAllData() {
                     dataUpdateTimer.restart();
+                }
+
+                function windowIdAt(x, y) {
+                    const layout = appIconsLoader.item?.iconsLayout;
+                    if (!layout)
+                        return null;
+                    const point = layout.mapFromItem(mouseArea, x, y);
+                    return layout.childAt(point.x, point.y)?.windowId ?? null;
+                }
+
+                function focusWindowAt(x, y) {
+                    const winId = delegateRoot.windowIdAt(x, y);
+                    if (!winId)
+                        return false;
+                    if (CompositorService.isHyprland) {
+                        // Custom: dispatch directly instead of HyprlandService.focusWindow
+                        Hyprland.dispatch(`focuswindow address:${winId}`);
+                        return true;
+                    }
+                    if (CompositorService.isNiri) {
+                        NiriService.focusWindow(winId);
+                        return true;
+                    }
+                    return false;
                 }
 
                 width: root.isVertical ? root.widgetHeight : visualWidth
@@ -1738,6 +1764,9 @@ Item {
                             id: contentRoot
                             readonly property real contentWidth: contentRow.item?.implicitWidth ?? 0
                             readonly property real contentHeight: contentRow.item?.implicitHeight ?? 0
+                            // Custom: icons live one level deeper in the column layout, so each
+                            // layout component names its own container instead of aliasing contentRow.item
+                            readonly property var iconsLayout: contentRow.item?.iconsContainer ?? null
 
                             Loader {
                                 id: contentRow
@@ -1748,6 +1777,8 @@ Item {
                             Component {
                                 id: rowLayout
                                 Row {
+                                    id: rowIconsRow
+                                    readonly property var iconsContainer: rowIconsRow
                                     spacing: 4
                                     visible: loadedIcons.length > 0 || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
 
@@ -1808,6 +1839,7 @@ Item {
                                             // Custom: use wsAppIconActive/wsAppIconNormal sizes
                                             width: root.wsAppIconActive
                                             height: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
+                                            readonly property var windowId: modelData.windowId
 
                                             IconImage {
                                                 id: rowAppIcon
@@ -1873,23 +1905,6 @@ Item {
                                                 }
                                             }
 
-                                            MouseArea {
-                                                id: rowAppMouseArea
-                                                anchors.fill: parent
-                                                enabled: isActive
-                                                cursorShape: Qt.PointingHandCursor
-                                                onClicked: {
-                                                    const winId = modelData.windowId;
-                                                    if (!winId)
-                                                        return;
-                                                    if (CompositorService.isHyprland) {
-                                                        Hyprland.dispatch(`focuswindow address:${winId}`);
-                                                    } else if (CompositorService.isNiri) {
-                                                        NiriService.focusWindow(winId);
-                                                    }
-                                                }
-                                            }
-
                                             Rectangle {
                                                 visible: modelData.count > 1 && !isActive
                                                 width: root.appIconSize * 0.67
@@ -1917,6 +1932,7 @@ Item {
                             Component {
                                 id: columnLayout
                                 Column {
+                                    readonly property var iconsContainer: colIconsLayout
                                     spacing: 4
                                     visible: loadedIcons.length > 0 || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
 
@@ -1986,6 +2002,8 @@ Item {
                                                     values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
                                                 }
                                                 delegate: Item {
+                                                    readonly property var windowId: modelData.windowId
+
                                                     Layout.preferredHeight: modelData.active ? root.wsAppIconActive : root.wsAppIconNormal
                                                     Layout.preferredWidth: root.wsAppIconActive
                                                     Layout.topMargin: modelData.active ? colIconsLayout.activeMargin : 0
@@ -2066,23 +2084,6 @@ Item {
                                                             font.pixelSize: modelData.active ? 14 : 10
                                                             font.weight: Font.Bold
                                                             color: Theme.onSecondary
-                                                        }
-                                                    }
-
-                                                    MouseArea {
-                                                        id: colAppMouseArea
-                                                        anchors.fill: parent
-                                                        enabled: isActive
-                                                        cursorShape: Qt.PointingHandCursor
-                                                        onClicked: {
-                                                            const winId = modelData.windowId;
-                                                            if (!winId)
-                                                                return;
-                                                            if (CompositorService.isHyprland) {
-                                                                Hyprland.dispatch(`focuswindow address:${winId}`);
-                                                            } else if (CompositorService.isNiri) {
-                                                                NiriService.focusWindow(winId);
-                                                            }
                                                         }
                                                     }
 
