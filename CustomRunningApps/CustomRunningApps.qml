@@ -3,7 +3,6 @@ import QtQuick.Controls
 import QtQuick.Effects
 import Quickshell
 import Quickshell.Io
-import Quickshell.Wayland
 import Quickshell.Widgets
 import qs.Common
 import qs.Modules.Plugins
@@ -23,12 +22,16 @@ BasePill {
     onHoveredItemChanged: {
         if (hoveredItem)
             return;
+        hideTooltip();
+    }
+
+    function hideTooltip() {
         if (tooltipLoader.item)
             tooltipLoader.item.hide();
         tooltipLoader.active = false;
     }
+
     property var topBar: null
-    property bool isAutoHideBar: false
     property Item windowRoot: (Window.window ? Window.window.contentItem : null)
 
     // ── PluginService settings ──
@@ -205,22 +208,6 @@ BasePill {
 
     readonly property real barY: barBounds.y
 
-    readonly property real minTooltipY: {
-        if (!parentScreen || !isVerticalOrientation) {
-            return 0;
-        }
-
-        if (isAutoHideBar) {
-            return 0;
-        }
-
-        if (parentScreen.y > 0) {
-            return effectiveBarThickness;
-        }
-
-        return 0;
-    }
-
     property int _desktopEntriesUpdateTrigger: 0
     property int _toplevelsUpdateTrigger: 0
     property int _appIdSubstitutionsTrigger: 0
@@ -229,6 +216,20 @@ BasePill {
     readonly property bool _currentMonitor: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCurrentMonitor")
     readonly property bool _groupByApp: SettingsData.widgetOption("runningApps", widgetData, "runningAppsGroupByApp")
     readonly property bool _compactMode: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCompactMode")
+    readonly property string windowModelKey: {
+        if (_groupByApp)
+            return "appId";
+        switch (CompositorService.compositor) {
+        case "aqueous":
+            return AqueousService.available ? "aqueousKey" : "address";
+        case "niri":
+            return "niriWindowId";
+        case "mango":
+            return "mangoWindowId";
+        default:
+            return "address";
+        }
+    }
 
     readonly property var sortedToplevels: {
         _toplevelsUpdateTrigger;
@@ -734,7 +735,7 @@ BasePill {
         const deltaY = wheelEvent.angleDelta.y;
         const isMouseWheel = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0;
 
-        const windows = root.sortedToplevels;
+        const windows = root.sortedToplevels.filter(w => !w.skipSwitcher);
         if (windows.length < 2)
             return;
 
@@ -814,7 +815,7 @@ BasePill {
                     id: windowRepeater
                     model: ScriptModel {
                         values: _groupByApp ? groupedWindows : sortedToplevels
-                        objectProp: _groupByApp ? "appId" : "address"
+                        objectProp: root.windowModelKey
                     }
 
                     delegate: Item {
@@ -1229,34 +1230,7 @@ BasePill {
                                         CompositorService.toggleToplevel(toplevelObject);
                                     }
                                 } else if (mouse.button === Qt.RightButton) {
-                                    if (tooltipLoader.item) {
-                                        tooltipLoader.item.hide();
-                                    }
-                                    tooltipLoader.active = false;
-
-                                    windowContextMenuLoader.active = true;
-                                    if (windowContextMenuLoader.item) {
-                                        windowContextMenuLoader.item.currentWindow = toplevelObject;
-                                        // Pass bar context
-                                        windowContextMenuLoader.item.triggerBarConfig = root.barConfig;
-                                        windowContextMenuLoader.item.triggerBarPosition = root.axis.edge === "left" ? 2 : (root.axis.edge === "right" ? 3 : (root.axis.edge === "top" ? 0 : 1));
-                                        windowContextMenuLoader.item.triggerBarThickness = root.barThickness;
-                                        windowContextMenuLoader.item.triggerBarSpacing = root.barSpacing;
-                                        if (root.isVerticalOrientation) {
-                                            const localPos = delegateItem.mapToItem(null, delegateItem.width / 2, delegateItem.height / 2);
-                                            const adjustedY = localPos.y + root.minTooltipY;
-                                            const xPos = root.axis?.edge === "left" ? (root.barThickness + root.barSpacing + Theme.spacingXS) : (root.parentScreen.width - root.barThickness - root.barSpacing - Theme.spacingXS);
-                                            windowContextMenuLoader.item.showAt(xPos, adjustedY, true, root.axis?.edge);
-                                        } else {
-                                            const localPos = delegateItem.mapToItem(null, delegateItem.width / 2, 0);
-                                            const screenHeight = root.parentScreen ? root.parentScreen.height : Screen.height;
-                                            const isBottom = root.axis?.edge === "bottom";
-                                            const yPos = isBottom
-                                                ? (screenHeight - root.barThickness - root.barSpacing - windowContextMenuLoader.item.menuHeight - Theme.spacingXS)
-                                                : (root.barThickness + root.barSpacing + Theme.spacingXS);
-                                            windowContextMenuLoader.item.showAt(localPos.x, yPos, false, root.axis?.edge);
-                                        }
-                                    }
+                                    root.openContextMenu(toplevelObject, delegateItem);
                                 } else if (mouse.button === Qt.MiddleButton) {
                                     if (toplevelObject) {
                                         if (typeof toplevelObject.close === "function") {
@@ -1397,7 +1371,7 @@ BasePill {
                 id: windowRepeater
                 model: ScriptModel {
                     values: _groupByApp ? groupedWindows : sortedToplevels
-                    objectProp: _groupByApp ? "appId" : "address"
+                    objectProp: root.windowModelKey
                 }
 
                 delegate: Item {
@@ -1726,32 +1700,7 @@ BasePill {
                                     CompositorService.toggleToplevel(toplevelObject);
                                 }
                             } else if (mouse.button === Qt.RightButton) {
-                                if (tooltipLoader.item) {
-                                    tooltipLoader.item.hide();
-                                }
-                                tooltipLoader.active = false;
-
-                                windowContextMenuLoader.active = true;
-                                if (windowContextMenuLoader.item) {
-                                    windowContextMenuLoader.item.currentWindow = toplevelObject;
-                                    // Pass bar context
-                                    windowContextMenuLoader.item.triggerBarConfig = root.barConfig;
-                                    windowContextMenuLoader.item.triggerBarPosition = root.axis.edge === "left" ? 2 : (root.axis.edge === "right" ? 3 : (root.axis.edge === "top" ? 0 : 1));
-                                    windowContextMenuLoader.item.triggerBarThickness = root.barThickness;
-                                    windowContextMenuLoader.item.triggerBarSpacing = root.barSpacing;
-                                    if (root.isVerticalOrientation) {
-                                        const localPos = delegateItem.mapToItem(null, delegateItem.width / 2, delegateItem.height / 2);
-                                        const adjustedY = localPos.y + root.minTooltipY;
-                                        const xPos = root.axis?.edge === "left" ? (root.barThickness + root.barSpacing + Theme.spacingXS) : (root.parentScreen.width - root.barThickness - root.barSpacing - Theme.spacingXS);
-                                        windowContextMenuLoader.item.showAt(xPos, adjustedY, true, root.axis?.edge);
-                                    } else {
-                                        const localPos = delegateItem.mapToItem(null, delegateItem.width / 2, 0);
-                                        const screenHeight = root.parentScreen ? root.parentScreen.height : Screen.height;
-                                        const isBottom = root.axis?.edge === "bottom";
-                                        const yPos = isBottom ? (screenHeight - root.barThickness - root.barSpacing - windowContextMenuLoader.item.menuHeight - Theme.spacingXS) : (root.barThickness + root.barSpacing + Theme.spacingXS);
-                                        windowContextMenuLoader.item.showAt(localPos.x, yPos, false, root.axis?.edge);
-                                    }
-                                }
+                                root.openContextMenu(toplevelObject, delegateItem);
                             } else if (mouse.button === Qt.MiddleButton) {
                                 if (toplevelObject) {
                                     if (typeof toplevelObject.close === "function") {
@@ -1845,215 +1794,82 @@ BasePill {
     }
 
     // ── Context menu ──
-    Loader {
-        id: windowContextMenuLoader
-        active: false
-        sourceComponent: PanelWindow {
-            id: contextMenuWindow
+    function menuAnchorFor(item) {
+        const anchor = root.contextMenuAnchor();
+        const center = item.mapToGlobal(item.width / 2, item.height / 2);
+        if (anchor.isVertical)
+            anchor.y = center.y - (anchor.screen.y || 0) + root.minTooltipY;
+        else
+            anchor.x = center.x - (anchor.screen.x || 0);
+        return anchor;
+    }
 
-            WindowBlur {
-                targetWindow: contextMenuWindow
-                blurX: contextMenuRect.x
-                blurY: contextMenuRect.y
-                blurWidth: contextMenuWindow.isVisible ? contextMenuRect.width : 0
-                blurHeight: contextMenuWindow.isVisible ? contextMenuRect.height : 0
-                blurRadius: Theme.cornerRadius
-            }
+    function openContextMenu(toplevelObject, item) {
+        root.hideTooltip();
+        windowContextMenu.currentWindow = toplevelObject ?? null;
+        windowContextMenu.openFromBar(item ? root.menuAnchorFor(item) : root.contextMenuAnchor());
+    }
 
-            property var currentWindow: null
-            readonly property real menuHeight: contextMenuRect.height
-            property bool isVisible: false
-            property point anchorPos: Qt.point(0, 0)
-            property bool isVertical: false
-            property string edge: "top"
+    DankContextMenu {
+        id: windowContextMenu
 
-            // New properties for bar context
-            property int triggerBarPosition: (SettingsData.getPrimaryBarConfig()?.position ?? SettingsData.Position.Top)
-            property real triggerBarThickness: 0
-            property real triggerBarSpacing: 0
-            property var triggerBarConfig: null
+        property var currentWindow: null
 
-            readonly property real effectiveBarThickness: {
-                if (triggerBarThickness > 0 && triggerBarSpacing > 0) {
-                    return triggerBarThickness + triggerBarSpacing;
-                }
-                return Theme.barThickness(barConfig?.innerPadding ?? 4, CompositorService.getScreenScale(contextMenuWindow.screen)) + (barConfig?.spacing ?? 4);
-            }
-
-            property var barBounds: {
-                if (!contextMenuWindow.screen || !triggerBarConfig) {
-                    return {
-                        "x": 0,
-                        "y": 0,
-                        "width": 0,
-                        "height": 0,
-                        "wingSize": 0
-                    };
-                }
-                return SettingsData.getBarBounds(contextMenuWindow.screen, effectiveBarThickness, triggerBarPosition, triggerBarConfig);
-            }
-
-            property real barY: barBounds.y
-
-            function showAt(x, y, vertical, barEdge) {
-                screen = root.parentScreen;
-                anchorPos = Qt.point(x, y);
-                isVertical = vertical ?? false;
-                edge = barEdge ?? "top";
-                isVisible = true;
-                visible = true;
-
-                if (screen) {
-                    TrayMenuManager.registerMenu(screen.name, contextMenuWindow);
-                }
-            }
-
-            function close() {
-                isVisible = false;
-                visible = false;
-                windowContextMenuLoader.active = false;
-
-                if (screen) {
-                    TrayMenuManager.unregisterMenu(screen.name);
-                }
-            }
-
-            implicitWidth: 100
-            implicitHeight: 40
-            visible: false
-            color: "transparent"
-
-            WlrLayershell.layer: WlrLayershell.Overlay
-            WlrLayershell.exclusiveZone: -1
-            WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
-
-            anchors {
-                top: true
-                left: true
-                right: true
-                bottom: true
-            }
-
-            Component.onDestruction: {
-                if (screen) {
-                    TrayMenuManager.unregisterMenu(screen.name);
-                }
-            }
-
-            Connections {
-                target: PopoutManager
-                function onPopoutOpening() {
-                    contextMenuWindow.close();
-                }
-            }
-
-            MouseArea {
-                anchors.fill: parent
-                onClicked: contextMenuWindow.close()
-            }
-
-            Rectangle {
-                id: contextMenuRect
-                x: {
-                    if (contextMenuWindow.isVertical) {
-                        if (contextMenuWindow.edge === "left") {
-                            return Math.min(contextMenuWindow.width - width - 10, contextMenuWindow.anchorPos.x);
-                        } else {
-                            return Math.max(10, contextMenuWindow.anchorPos.x - width);
-                        }
-                    } else {
-                        const left = 10;
-                        const right = contextMenuWindow.width - width - 10;
-                        const want = contextMenuWindow.anchorPos.x - width / 2;
-                        return Math.max(left, Math.min(right, want));
+        layerNamespace: "dms:custom-running-apps-context-menu"
+        menuItems: {
+            const items = [];
+            if (CompositorService.canMinimize(currentWindow))
+                items.push({
+                    type: "item",
+                    icon: currentWindow?.minimized ? "open_in_full" : "minimize",
+                    text: currentWindow?.minimized ? I18n.tr("Restore") : I18n.tr("Minimize"),
+                    action: () => {
+                        const targetWindow = windowContextMenu.currentWindow;
+                        if (!targetWindow)
+                            return;
+                        if (targetWindow.minimized)
+                            CompositorService.activateToplevel(targetWindow);
+                        else
+                            targetWindow.minimized = true;
                     }
-                }
-                y: {
-                    if (contextMenuWindow.isVertical) {
-                        const top = Math.max(barY, 10);
-                        const bottom = contextMenuWindow.height - height - 10;
-                        const want = contextMenuWindow.anchorPos.y - height / 2;
-                        return Math.max(top, Math.min(bottom, want));
-                    } else {
-                        return contextMenuWindow.anchorPos.y;
-                    }
-                }
-                width: 120
-                height: menuColumn.height + Theme.spacingXS * 2
-                color: Theme.withAlpha(Theme.surfaceContainer, Theme.popupTransparency)
-                radius: Theme.cornerRadius
-                border.width: BlurService.borderWidth
-                border.color: BlurService.borderColor
-
-                Column {
-                    id: menuColumn
-                    anchors.horizontalCenter: parent.horizontalCenter
-                    anchors.top: parent.top
-                    anchors.topMargin: Theme.spacingXS
-                    width: parent.width - Theme.spacingXS * 2
-                    spacing: 1
-
-                    Rectangle {
-                        visible: CompositorService.canMinimize(contextMenuWindow.currentWindow)
-                        width: parent.width
-                        height: 28
-                        radius: Theme.cornerRadius
-                        color: minimizeMouseArea.containsMouse ? BlurService.hoverColor(Theme.widgetBaseHoverColor) : "transparent"
-
-                        StyledText {
-                            anchors.centerIn: parent
-                            text: contextMenuWindow.currentWindow?.minimized ? I18n.tr("Restore") : I18n.tr("Minimize")
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.widgetTextColor
-                        }
-
-                        MouseArea {
-                            id: minimizeMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                const targetWindow = contextMenuWindow.currentWindow;
-                                if (targetWindow) {
-                                    if (targetWindow.minimized) {
-                                        CompositorService.activateToplevel(targetWindow);
-                                    } else {
-                                        targetWindow.minimized = true;
-                                    }
-                                }
-                                contextMenuWindow.close();
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        width: parent.width
-                        height: 28
-                        radius: Theme.cornerRadius
-                        color: closeMouseArea.containsMouse ? BlurService.hoverColor(Theme.widgetBaseHoverColor) : "transparent"
-
-                        StyledText {
-                            anchors.centerIn: parent
-                            text: I18n.tr("Close")
-                            font.pixelSize: Theme.fontSizeSmall
-                            color: Theme.widgetTextColor
-                        }
-
-                        MouseArea {
-                            id: closeMouseArea
-                            anchors.fill: parent
-                            hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (contextMenuWindow.currentWindow) {
-                                    contextMenuWindow.currentWindow.close();
-                                }
-                                contextMenuWindow.close();
-                            }
-                        }
-                    }
-                }
+                });
+            const scratchpad = CompositorService.windowScratchpadName(currentWindow);
+            if (scratchpad)
+                items.push({
+                    type: "item",
+                    icon: "outbox",
+                    text: I18n.tr("Move out of scratchpad"),
+                    action: () => CompositorService.moveWindowOutOfSpecial(windowContextMenu.currentWindow)
+                });
+            for (const name of scratchpad ? [] : CompositorService.specialWorkspaceNames) {
+                items.push({
+                    type: "item",
+                    icon: "inbox",
+                    text: name === "special" ? I18n.tr("Move to scratchpad") : I18n.tr("Move to scratchpad: %1", "%1 is the named special workspace").arg(name),
+                    action: () => CompositorService.moveWindowToSpecial(windowContextMenu.currentWindow, name)
+                });
             }
+            items.push({
+                type: "item",
+                icon: "close",
+                text: I18n.tr("Close"),
+                isDestructive: true,
+                action: () => windowContextMenu.currentWindow?.close()
+            });
+            return items;
+        }
+        onOpenStateChanged: {
+            const screenName = root.parentScreen?.name;
+            if (!screenName)
+                return;
+            if (openState)
+                TrayMenuManager.registerMenu(screenName, windowContextMenu.contextWindow);
+            else
+                TrayMenuManager.unregisterMenu(screenName);
+        }
+        Component.onDestruction: {
+            if (openState && root.parentScreen?.name)
+                TrayMenuManager.unregisterMenu(root.parentScreen.name);
         }
     }
 }
