@@ -212,10 +212,21 @@ BasePill {
     property int _toplevelsUpdateTrigger: 0
     property int _appIdSubstitutionsTrigger: 0
 
-    readonly property bool _currentWorkspace: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCurrentWorkspace")
-    readonly property bool _currentMonitor: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCurrentMonitor")
-    readonly property bool _groupByApp: SettingsData.widgetOption("runningApps", widgetData, "runningAppsGroupByApp")
-    readonly property bool _compactMode: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCompactMode")
+    // Upstream config v18 moved these from SettingsData globals into per-widget options; the
+    // migration deleted the globals, so our own defaults live here. DMS defaults compact mode
+    // to true (icon only) - this widget is meant to show window titles.
+    readonly property var optionDefaults: ({
+            "runningAppsCompactMode": false
+        })
+
+    function opt(key) {
+        return widgetData?.[key] ?? optionDefaults[key] ?? SettingsData.widgetOption("runningApps", widgetData, key);
+    }
+
+    readonly property bool _currentWorkspace: root.opt("runningAppsCurrentWorkspace")
+    readonly property bool _currentMonitor: root.opt("runningAppsCurrentMonitor")
+    readonly property bool _groupByApp: root.opt("runningAppsGroupByApp")
+    readonly property bool _compactMode: root.opt("runningAppsCompactMode")
     readonly property string windowModelKey: {
         if (_groupByApp)
             return "appId";
