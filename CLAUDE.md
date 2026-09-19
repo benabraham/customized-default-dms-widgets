@@ -28,14 +28,14 @@ so QML warnings (binding loops included) are not readable this way.
 loudly on syntax errors. `qmllint` also works but floods the output with unresolved-import warnings,
 since `qs.*` imports only resolve inside the running DMS.
 
-Two files are **false positives** for `qmlformat`: `CustomRunningApps.qml` and
-`CustomWorkspaceSwitcher.qml` exit 1 with a bare `Failed to parse` even on an untouched checkout
-(`git show HEAD:<file>` reproduces it), for reasons unrelated to syntax — `qmllint` parses both
-fine and emits line-accurate diagnostics throughout. For those two, use
-`qmllint <file> 2>&1 | grep '^Error:'` instead and compare the error set before and after an edit;
-`CustomRunningApps` has 6 pre-existing errors, all `syntax.duplicate-ids` from the two delegate
-branches, which upstream's `RunningApps.qml` has as well; `CustomWorkspaceSwitcher` has none, so
-any error there is yours.
+One file is a **false positive** for `qmlformat`: `CustomRunningApps.qml` exits 1 with a bare
+`Failed to parse` even on an untouched checkout (`git show HEAD:<file>` reproduces it), for
+reasons unrelated to syntax — `qmllint` parses it fine and emits line-accurate diagnostics
+throughout. For that one, use `qmllint <file> 2>&1 | grep '^Error:'` instead and compare the
+error set before and after an edit; it has 6 pre-existing errors, all `syntax.duplicate-ids`
+from the two delegate branches, which upstream's `RunningApps.qml` has as well.
+(`CustomWorkspaceSwitcher.qml` used to fail the same way; the 2026-09-19 sync rewrite cleared
+it, and it now passes `qmlformat` and reports 0 `qmllint` errors.)
 
 ## Code Conventions
 
@@ -61,6 +61,18 @@ any error there is yours.
 *except* `CustomSystemTrayBar`, which uses `"SortedSystemTray"` (a leftover from when it did regex
 sorting). Changing that string orphans the user's saved icon size and spacing.
 
+**`PluginService.pluginDataChanged` carries only the plugin id.** The signal is
+`pluginDataChanged(string pluginId)` — there is no `key` or `value` argument. A handler written as
+`onPluginDataChanged(pluginId, key)` gets `key === undefined` and silently never applies anything;
+reload every value when the id matches.
+
+**Settings that used to be `SettingsData` globals now live per widget.** Since DMS config
+version 18, read them with `SettingsData.widgetOption("<widgetType>", widgetData, "<key>")`
+(types and defaults in `quickshell/Common/settings/BarWidgetDefaults.js`). `SurfaceWidgetHost`
+binds `widgetData` onto any plugin item that declares `property var widgetData`. Our plugins'
+bar entries carry no option keys, so `widgetOption` falls back to the DMS defaults — where that
+default is wrong for us, the plugin keeps its own `optionDefaults` map.
+
 **Data flow:**
 ```
 DankBar (parent) → Plugin Widget → Local state + Services → Reactive UI
@@ -75,7 +87,7 @@ Key customizations to preserve are documented in README.md and `.claude/commands
 ## Plugin-Specific Notes
 
 - **CustomRunningApps** - Most complex; has scroll switching, middle-click close, context menu, dynamic title width with a root-level debounce cache that survives delegate recreation. `Theme.warning` vs `Theme.primary` distinguishes tabbed from normal column frames.
-- **CustomSystemTrayBar** - Long-press drag-and-drop icon reordering, persisted to `SessionData.trayItemOrder` via `setTrayItemOrder()`. Icon size and spacing come from `PluginService` under the `"SortedSystemTray"` key; hide/show uses `SessionData.hideTrayId`/`showTrayId`.
-- **CustomWorkspaceSwitcher** - Individual app icons (no grouping — see the `// Custom:` markers), click-to-focus via `NiriService.focusWindow`
+- **CustomSystemTrayBar** - Long-press drag-and-drop icon reordering, persisted to `SessionData.trayItemOrder` via `setTrayItemOrder()`. Icon size and spacing come from `PluginService` under the `"SortedSystemTray"` key; hide/show uses `SessionData.hideTrayId`/`showTrayId`. Upstream's auto-overflow / "Keep in Bar" is disabled by pinning `useAutomaticOverflow: false` — don't re-enable it, and don't delete the upstream code it makes dead.
+- **CustomWorkspaceSwitcher** - Individual app icons (no grouping — see the `// Custom:` markers), click-to-focus via `CompositorService.focusWindow`. Workspace data comes from `CompositorService`'s workspace API (`workspacesForScreen`, `currentWorkspaceKey`, `windowsOnWorkspace`, …), not from per-compositor branches.
 - **Screensaver** - Daemon plugin; multi-stage DDC brightness dimming for OLED burn-in protection (not a bar widget)
 - **dockerManager** - Independent plugin with own architecture; see `dockerManager/CLAUDE.md`

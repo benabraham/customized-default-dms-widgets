@@ -4,13 +4,86 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-09-07
-**Base commit:** `0f565361` (fix(launcher): stop injectnig plugins into app categories) — `upstream/master` tip
+**Last synced:** 2026-09-19
+**Base commit:** `b5415caa` (bar: stop hidden pills from catching clicks (#3488)) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `5c4ae943` = `upstream/master` + 2 fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to `dms-shell-1.7-beta+date=2026-09-07_5c4ae94`, and `git diff upstream/master HEAD -- Modules/DankBar/Widgets/ Modules/Plugins/BasePill.qml` is empty, so every file we fork is byte-identical to `upstream/master` (verified this sync). `NiriService.focusWindow`, `Theme.barThickness()`, `CompositorService.getScreenScale()`, `CompositorService.sortedToplevels`, `NiriService.lastFocusedWindowId`, `DankPopout.popoutClosed`, `SpringMotion`, `ScrollingText`, `Theme.isLightColor`, `Theme.springPreset` and `SettingsData.getPrimaryBarConfig()` are all present. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI; `dms-debug-srv.service` runs its own `dms-shell-1.7-beta+date=2026-09-07_0f56536` store path — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `48402bba` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to a `dms-shell-1.7-beta+date=2026-09-19_dirty` store path built from that HEAD, and `git diff upstream/master HEAD -- quickshell/Modules/DankBar/Widgets/ quickshell/Modules/Plugins/` is empty, so every file we fork is byte-identical to `upstream/master` (verified this sync). `dms-debug-srv.service` runs its own `dms-shell-1.7-beta+date=2026-09-19_b5415ca` store path. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `c1f1da1d`)
+### Applied in this sync (since `0f565361`)
+
+93 upstream commits. One of them — the `8e9cd3f4` squash — rewrote the whole bar widget
+layer, so this sync is much larger than usual: `BasePill` became a one-line alias for the new
+`qs.Modules.SurfaceWidgets.BarPill`, per-compositor logic moved into `CompositorService` +
+`Common/WorkspaceModel.js`, tray and running-apps menus moved onto `DankPopout` /
+`DankContextMenu`, and config version 18 moved 17 global settings into per-widget options.
+
+**First, a breakage fix.** Config v18 migration *deletes* the old globals from `settings.json`,
+so four widgets were silently reading `undefined`: CustomWorkspaceSwitcher lost its app icons
+(`showWorkspaceApps` falsy, `maxWorkspaceIcons` undefined makes `slice(0, undefined)` return `[]`)
+plus drag reorder, the focused border, and a NaN `appIconSize` via
+`-6 + workspaceAppIconSizeOffset`; CustomRunningApps lost compact mode; CustomMedia's scroll
+handling went dead; CustomFocusedApp lost compact mode. Everything now goes through
+`SettingsData.widgetOption(<widgetType>, widgetData, key)`. The user's migrated values are
+unrecoverable, and DMS defaults turn the workspace app icons off, so CustomWorkspaceSwitcher
+carries an `optionDefaults` map (`showWorkspaceApps`, `showWorkspaceIndex`,
+`showWorkspacePadding` all true) consulted by its `opt()` helper.
+
+- **CustomNetworkMonitor** — `Ref`-based `DgopService` refcount (released when the widget or its
+  window is hidden, instead of held for the shell's lifetime), `contentThickness`, `contentColor`.
+- **CustomFocusedApp** (672 → 529 lines) — `resolveSortedWindow`, `resolveActiveWindowPid`,
+  `isWindowAlive`, `getNiriFocusedWindow` and the per-compositor bodies of `updateActiveWindow` /
+  `hasWindowsOnCurrentWorkspace` all collapse into `CompositorService.activeWindowForScreen`,
+  `windowPid` and `windowOnActiveWorkspace`, which also brings Aqueous support (`b9365610`).
+  `minTooltipY` and `isAutoHideBar` now come from `BasePill`.
+- **CustomMedia** — `surfaceContext`/`contentScale`, `BarMetrics.mediaControlSize` sizing,
+  upstream's `PlayButton` (`DankIconButton`, filled + checkable), `StateLayer` prev/next,
+  `surfaceLive` gating on the visualiser and the scrolling title. The inline
+  `setTriggerPosition` calls stay: upstream could drop them because `SurfaceWidgetFactory`
+  positions the dash popout in its own `onClicked`, which plugin widgets never reach.
+- **CustomSystemTrayBar** — taken wholesale from `upstream/master` and re-customised, since
+  `65fb97d2` (menus → `DankPopout`, -837/+440) and the squash's `BarPillSurface`/`TrayItemIcon`
+  delegates left no common structure. Also picks up `1bf35426` and `2bf2754a`, and upstream
+  fixes the fork never had: the `DismissZone` overflow mask, the window-local `mapToItem` popup
+  placement fix for non-primary monitors, `WlrLayershell.Overlay`, `StyledText` instead of a raw
+  `Text`, and popup drag reordering. Auto-overflow / "Keep in Bar" is kept out by pinning
+  `useAutomaticOverflow: false` rather than by surgery — that empties `autoOverflowBarItems` and
+  makes `isAutoOverflowTrayItem()` always false, so every branch that would introduce it is dead
+  while the file stays diff-friendly.
+- **CustomRunningApps** (2074 → 1862 lines) — patched rather than taken wholesale, because
+  upstream's 1600 → 545 rewrite drops the dynamic title width, the per-state colour system and
+  the full-height pills this fork exists for. Ported: the 230-line hand-rolled `PanelWindow`
+  context menu → `DankContextMenu` positioned through `BasePill.contextMenuAnchor()`, with
+  `a3a9fe13`'s scratchpad entries; `windowModelKey` per compositor (the fork keyed ungrouped
+  windows by `"address"`, which only Hyprland sets, so on niri every row shared an undefined
+  key); `skipSwitcher` filtering in scroll switching.
+- **CustomWorkspaceSwitcher** (2222 → 1572 lines) — data layer moved onto
+  `CompositorService.currentWorkspaceKey` / `workspacesForScreen` / `isCurrentWorkspace` /
+  `workspaceOccupied` / `workspaceUrgent` / `windowsOnWorkspace` / `switchToWorkspace` /
+  `stepWorkspace` / `workspaceSecondaryAction` / `focusWindow`. Ext-workspace data now comes
+  from `Quickshell.WindowManager` screen projections. Brings `workspacePaddingCount`
+  (`e5d8d031`), special-workspace hyprland slot keys (`72326ec5`), special workspaces with the
+  `inbox` icon (`a3a9fe13`) and Aqueous (`b9365610`).
+
+**Not applicable:** `f6c53993` (`selectedContainer` instead of `primaryContainer` in
+RunningApps) — our focused/unfocused colours come from the PluginService colour modes.
+`014c69b0` (workspace tile colour restyle) — same reason.
+
+### Drive-by fixes in this sync
+
+- `PluginService.pluginDataChanged` only ever carried the plugin id, but all four plugins
+  declared `onPluginDataChanged(pluginId, key)` and branched on `key`. No plugin setting has
+  ever applied without a `dms restart`. All four handlers now match on the id and reload every
+  value.
+- `Theme.onSecondary` has not existed for some time; the five no-icon first-letter fallbacks
+  across CustomFocusedApp, CustomRunningApps and CustomWorkspaceSwitcher now use
+  `Theme.widgetTextColor`, like upstream.
+- CustomMedia's `SettingsData.audioScrollEnabled` fallback was already dead at the previous
+  base, so `scrollMode` resolved to `"nothing"` regardless.
+- CustomWorkspaceSwitcher's `padding` mirrored `BarPill`'s old formula (default 12, plus
+  `removeWidgetPadding`). `BarPill` now defaults to 8 and has dropped `removeWidgetPadding`.
+
+### Applied in the 2026-09-07 sync (since `c1f1da1d`)
 Exactly one of the 37 upstream commits touched our six widgets. No changes to `CustomFocusedApp`,
 `CustomMedia`, `CustomNetworkMonitor`, `CustomRunningApps`, `CustomSystemTrayBar`,
 `Modules/Plugins/BasePill.qml` or `AudioVisualization.qml`.
@@ -114,9 +187,14 @@ Only one upstream commit touched our six widgets: `c67b1850` "qs: large sweep of
 - CustomFocusedApp's new `showIcon` setting + horizontal-icon width recalculation — superseded by our existing "icon + title, unlimited width" customization, which predates and already covers this.
 - CustomMedia's prev/next hover-color fix — doesn't apply; we already use a different color scheme (`Theme.primaryHover`) there.
 
-### Known pre-existing issues (found during this sync, not fixed — out of scope)
-- **CustomWorkspaceSwitcher: dwl/mango dead code.** `CompositorService.isDwl` and the `DwlService` singleton no longer exist upstream (renamed to `isMango`/`MangoService` some time before this sync's base commit). Every `CompositorService.isDwl` branch and `case "dwl"` in this file is therefore dead — Mango users get no workspace switching from this widget except the one path (`effectiveScreenName`) fixed incidentally above. Needs a dedicated dwl→mango rename pass.
-- **CustomWorkspaceSwitcher: named sway workspaces + app icons.** `getWorkspaceIcons` still keys off `.num`, so a purely-named sway workspace (`num === -1`) won't show its per-app icons. This is a DMS-only custom feature with no upstream equivalent to port, so it wasn't touched.
+### Known pre-existing issues
+
+- **CustomWorkspaceSwitcher: dwl/mango dead code** — *fixed in the 2026-09-19 sync.* The
+  `CompositorService.isDwl` / `DwlService` branches are gone; mango now goes through
+  `CompositorService`'s workspace API like every other compositor.
+- **CustomWorkspaceSwitcher: named sway workspaces + app icons** — *fixed in the 2026-09-19
+  sync.* `getWorkspaceIcons` no longer keys off `.num`; it asks
+  `CompositorService.windowsOnWorkspace(record)`.
 
 ## CustomFocusedApp
 
@@ -160,7 +238,7 @@ Enhanced running apps taskbar.
 Changes:
 - Scroll wheel switches between windows
 - Middle-click closes window
-- Right-click context menu with "Close" option
+- Right-click context menu (`DankContextMenu`) with Minimize/Restore, scratchpad moves and Close
 - Grouped windows show badge with count
 - Click cycles through grouped windows
 - Hover tooltips active via `tooltipLoader` (an earlier revision had them commented out)
@@ -185,8 +263,15 @@ System tray with custom icon sizes, spacing, and hover colors. Uses upstream dra
 Changes:
 - **Custom icon size**: Configurable via `PluginService.loadPluginData("SortedSystemTray", "iconSize", 18)`
 - **Custom icon spacing**: Configurable via `PluginService.loadPluginData("SortedSystemTray", "iconSpacing", "M")` (presets: 0, XS, S, M, L, XL)
-- **Custom hover color**: `Theme.primaryHover` instead of default `Theme.widgetBaseHoverColor`
+- **Custom hover color**: `Theme.primaryHover` on the four bar-visible hover surfaces (both
+  carets, the main delegate, the inline expanded delegate) instead of upstream's `Theme.onSurface`
+  state-layer alpha. Menu chrome keeps upstream's styling.
+- **Item size is the icon**: `trayItemSize` is `configuredIconSize` with no padding; upstream pads
+  it by `spacingXS + spacingXXS`, which would double up with the spacing preset.
 - **Drag-and-drop reordering**: Uses upstream's drag-and-drop with spacing-aware slot calculations
+- **No auto-overflow**: `useAutomaticOverflow` is pinned `false`, which empties
+  `autoOverflowBarItems` and makes `isAutoOverflowTrayItem()` always false — every upstream
+  branch that would add auto-overflow or "Keep in Bar" is dead, with no surgery on the file.
 
 ## CustomWorkspaceSwitcher
 
@@ -194,9 +279,12 @@ Enhanced workspace indicator with app icons.
 
 Changes:
 - Shows individual app icons per workspace (no grouping)
-  - Patched: `const key = \`${keyBase}_${i}\`` (unique key per window)
+  - Patched: `const key = w.aqueousKey || \`${moddedId}_${i}\`` (unique key per window), and
+    `stableIconCount` returns `CompositorService.windowsOnWorkspace(record).length` rather than
+    upstream's per-app grouped count
 - Active window icons enlarged (36px vs 24px)
-- Click on app icon focuses that window
+- Click on app icon focuses that window, via `windowIdAt`/`focusWindowAt` hit-testing and
+  `CompositorService.focusWindow`
 - Workspace index always shown alongside icons
 - Steam games show gamepad icon, Quickshell shows themed icon
 - **Custom background colors** - Settings for all 4 states (active, unfocused, occupied, urgent)
