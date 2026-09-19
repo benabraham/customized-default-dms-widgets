@@ -29,7 +29,10 @@ Item {
     readonly property var optionDefaults: ({
             "showWorkspaceApps": true,
             "showWorkspaceIndex": true,
-            "showWorkspacePadding": true
+            "showWorkspacePadding": true,
+            // Upstream defaults to 3; we show one icon per window (no grouping),
+            // so cap high enough to never truncate a real workspace.
+            "maxWorkspaceIcons": 64
         })
 
     function opt(key) {
