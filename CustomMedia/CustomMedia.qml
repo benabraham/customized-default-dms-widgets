@@ -1,12 +1,16 @@
 import QtQuick
 import Quickshell.Services.Mpris
 import qs.Common
+import qs.Modules.DankBar
 import qs.Modules.Plugins
 import qs.Services
 import qs.Widgets
 
 BasePill {
     id: root
+
+    property var surfaceContext: null
+    readonly property real contentScale: surfaceContext?.kind === "dock" ? widgetThickness / 40 : 1
 
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property bool playerAvailable: activePlayer !== null
@@ -47,16 +51,16 @@ BasePill {
     }
     readonly property int currentContentWidth: {
         if (isVerticalOrientation) {
-            return widgetThickness - horizontalPadding * 2;
+            return contentThickness;
         }
         return 0;
     }
     readonly property int currentContentHeight: {
         if (!isVerticalOrientation) {
-            return widgetThickness - horizontalPadding * 2;
+            return contentThickness;
         }
-        const audioVizHeight = 20;
-        const playButtonHeight = 24;
+        const audioVizHeight = BarMetrics.mediaControlSize * root.contentScale;
+        const playButtonHeight = 24 * root.contentScale;
         return audioVizHeight + Theme.spacingXS + playButtonHeight;
     }
 
@@ -122,6 +126,27 @@ BasePill {
         }
     }
 
+    component PlayButton: Item {
+        width: Theme.iconSize * root.contentScale
+        height: width
+        visible: root.playerAvailable
+
+        DankIconButton {
+            anchors.centerIn: parent
+            width: Theme.buttonHeightS
+            buttonSize: Theme.buttonHeightS
+            scale: parent.width / width
+            variant: "filled"
+            round: false
+            checkable: true
+            checked: root._isPlaying
+            iconName: root._isPlaying ? "pause" : "play_arrow"
+            Accessible.name: root._isPlaying ? I18n.tr("Pause") : I18n.tr("Play")
+            enabled: root.activePlayer?.canTogglePlaying ?? false
+            onClicked: root.activePlayer.togglePlaying()
+        }
+    }
+
     content: Component {
         Item {
             implicitWidth: root.playerAvailable ? (root.textWidth === -1 ? mediaRow.implicitWidth : root.currentContentWidth) : 0
@@ -157,11 +182,12 @@ BasePill {
                 spacing: Theme.spacingXS
 
                 Item {
-                    width: 20
-                    height: 20
+                    width: BarMetrics.mediaControlSize * root.contentScale
+                    height: BarMetrics.mediaControlSize * root.contentScale
                     anchors.horizontalCenter: parent.horizontalCenter
 
                     AudioVisualization {
+                        enabled: root.surfaceLive
                         anchors.fill: parent
                         visible: CavaService.cavaAvailable && SettingsData.audioVisualizerEnabled
                     }
@@ -169,7 +195,7 @@ BasePill {
                     DankIcon {
                         anchors.fill: parent
                         name: "music_note"
-                        size: 20
+                        size: BarMetrics.mediaControlSize * root.contentScale
                         color: Theme.primary
                         visible: !CavaService.cavaAvailable || !SettingsData.audioVisualizerEnabled
                     }
@@ -193,37 +219,19 @@ BasePill {
                     }
                 }
 
-                Rectangle {
-                    width: 24
-                    height: 24
-                    radius: 12
+                PlayButton {
                     anchors.horizontalCenter: parent.horizontalCenter
-                    color: root._isPlaying ? Theme.primary : Theme.primaryHover
-                    visible: root.playerAvailable
-                    opacity: activePlayer ? 1 : 0.3
-
-                    DankIcon {
-                        anchors.centerIn: parent
-                        name: root._isPlaying ? "pause" : "play_arrow"
-                        size: 14
-                        color: root._isPlaying ? Theme.background : Theme.primary
-                    }
 
                     MouseArea {
                         anchors.fill: parent
-                        enabled: root.playerAvailable
+                        acceptedButtons: Qt.MiddleButton | Qt.RightButton
                         cursorShape: Qt.PointingHandCursor
-                        acceptedButtons: Qt.LeftButton | Qt.MiddleButton | Qt.RightButton
                         onClicked: mouse => {
-                            if (!activePlayer)
-                                return;
-                            if (mouse.button === Qt.LeftButton) {
-                                activePlayer.togglePlaying();
-                            } else if (mouse.button === Qt.MiddleButton) {
+                            if (mouse.button === Qt.MiddleButton) {
                                 MprisController.previousOrRewind();
-                            } else if (mouse.button === Qt.RightButton) {
-                                MprisController.next();
+                                return;
                             }
+                            MprisController.next();
                         }
                     }
                 }
@@ -243,12 +251,13 @@ BasePill {
                     layoutDirection: root.reverseOrder ? Qt.RightToLeft : Qt.LeftToRight
 
                     Item {
-                        width: 20
-                        height: 20
+                        width: BarMetrics.mediaControlSize * root.contentScale
+                        height: BarMetrics.mediaControlSize * root.contentScale
                         anchors.verticalCenter: parent.verticalCenter
                         visible: !root.hideIcon
 
                         AudioVisualization {
+                            enabled: root.surfaceLive
                             anchors.fill: parent
                             visible: CavaService.cavaAvailable && SettingsData.audioVisualizerEnabled
                         }
@@ -256,7 +265,7 @@ BasePill {
                         DankIcon {
                             anchors.fill: parent
                             name: "music_note"
-                            size: 20
+                            size: BarMetrics.mediaControlSize * root.contentScale
                             color: Theme.primary
                             visible: !CavaService.cavaAvailable || !SettingsData.audioVisualizerEnabled
                         }
@@ -298,9 +307,9 @@ BasePill {
                             id: mediaText
                             anchors.fill: parent
                             text: textContainer.displayText
-                            color: Theme.widgetTextColor
+                            color: root.contentColor
                             font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
-                            active: root._isPlaying
+                            active: root.surfaceLive && root._isPlaying
                             animateTextChange: true
                         }
 
@@ -328,79 +337,53 @@ BasePill {
                     anchors.verticalCenter: parent.verticalCenter
 
                     Rectangle {
-                        width: 20
-                        height: 20
-                        radius: 10
+                        width: BarMetrics.mediaControlSize * root.contentScale
+                        height: BarMetrics.mediaControlSize * root.contentScale
+                        radius: Theme.cornerRadiusFull
                         anchors.verticalCenter: parent.verticalCenter
-                        color: prevArea.containsMouse ? Theme.primaryHover : "transparent"
+                        color: "transparent"
                         visible: root.playerAvailable
                         opacity: (activePlayer && activePlayer.canGoPrevious) ? 1 : 0.3
 
                         DankIcon {
                             anchors.centerIn: parent
                             name: "skip_previous"
-                            size: 12
-                            color: Theme.widgetTextColor
+                            size: 12 * root.contentScale
+                            color: root.contentColor
                         }
 
-                        MouseArea {
+                        StateLayer {
                             id: prevArea
-                            anchors.fill: parent
                             enabled: root.playerAvailable
-                            cursorShape: Qt.PointingHandCursor
+                            stateColor: root.contentColor
                             onClicked: MprisController.previousOrRewind()
                         }
                     }
 
-                    Rectangle {
-                        width: 24
-                        height: 24
-                        radius: 12
+                    PlayButton {
                         anchors.verticalCenter: parent.verticalCenter
-                        color: root._isPlaying ? Theme.primary : Theme.primaryHover
-                        visible: root.playerAvailable
-                        opacity: activePlayer ? 1 : 0.3
-
-                        DankIcon {
-                            anchors.centerIn: parent
-                            name: root._isPlaying ? "pause" : "play_arrow"
-                            size: 14
-                            color: root._isPlaying ? Theme.background : Theme.primary
-                        }
-
-                        MouseArea {
-                            anchors.fill: parent
-                            enabled: root.playerAvailable
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (activePlayer) {
-                                    activePlayer.togglePlaying();
-                                }
-                            }
-                        }
                     }
 
                     Rectangle {
-                        width: 20
-                        height: 20
-                        radius: 10
+                        width: BarMetrics.mediaControlSize * root.contentScale
+                        height: BarMetrics.mediaControlSize * root.contentScale
+                        radius: Theme.cornerRadiusFull
                         anchors.verticalCenter: parent.verticalCenter
-                        color: nextArea.containsMouse ? Theme.primaryHover : "transparent"
+                        color: "transparent"
                         visible: playerAvailable
                         opacity: (activePlayer && activePlayer.canGoNext) ? 1 : 0.3
 
                         DankIcon {
                             anchors.centerIn: parent
                             name: "skip_next"
-                            size: 12
-                            color: Theme.widgetTextColor
+                            size: 12 * root.contentScale
+                            color: root.contentColor
                         }
 
-                        MouseArea {
+                        StateLayer {
                             id: nextArea
-                            anchors.fill: parent
                             enabled: root.playerAvailable
-                            cursorShape: Qt.PointingHandCursor
+                            stateColor: root.contentColor
                             onClicked: {
                                 if (activePlayer) {
                                     MprisController.next();
