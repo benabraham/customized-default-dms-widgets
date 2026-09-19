@@ -14,7 +14,7 @@ BasePill {
     id: root
 
     property var widgetData: null
-    property bool compactMode: widgetData?.focusedWindowCompactMode !== undefined ? widgetData.focusedWindowCompactMode : SettingsData.focusedWindowCompactMode
+    property bool compactMode: SettingsData.widgetOption("focusedWindow", widgetData, "focusedWindowCompactMode")
     property int availableWidth: 400
     // Custom: WidgetHost injects this through a duck-typed Binding (WidgetHost.qml) for any widget
     // that declares it, plugins included — same mechanism as crossEdgeExtension. For the centre
@@ -436,7 +436,7 @@ BasePill {
                     }
                     font.pixelSize: 10
                     font.weight: Font.Bold
-                    color: Theme.onSecondary
+                    color: Theme.widgetTextColor
                 }
             }
 
@@ -484,7 +484,7 @@ BasePill {
                         }
                         font.pixelSize: 14
                         font.weight: Font.Bold
-                        color: Theme.onSecondary
+                        color: Theme.widgetTextColor
                     }
                 }
 

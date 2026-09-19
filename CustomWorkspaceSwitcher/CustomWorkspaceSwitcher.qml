@@ -23,6 +23,19 @@ Item {
     property var hyprlandOverviewLoader: null
     property var parentScreen: null
     property real crossEdgeExtension: 0
+    property var widgetData: null
+
+    // Upstream config v18 moved these from SettingsData globals into per-widget
+    // options; the migration deleted the globals, so our own defaults live here.
+    readonly property var optionDefaults: ({
+            "showWorkspaceApps": true,
+            "showWorkspaceIndex": true,
+            "showWorkspacePadding": true
+        })
+
+    function opt(key) {
+        return widgetData?.[key] ?? optionDefaults[key] ?? SettingsData.widgetOption("workspaceSwitcher", widgetData, key);
+    }
 
     readonly property real _leftMargin: {
         if (isVertical)
@@ -69,7 +82,7 @@ Item {
     }
 
     readonly property string effectiveScreenName: {
-        if (!SettingsData.workspaceFollowFocus)
+        if (!root.opt("workspaceFollowFocus"))
             return root.screenName;
         return BarWidgetService.getFocusedScreenName() || root.screenName;
     }
@@ -120,7 +133,7 @@ Item {
     property var workspaceList: {
         if (useExtWorkspace) {
             const baseList = getExtWorkspaceWorkspaces();
-            return SettingsData.showWorkspacePadding ? padWorkspaces(baseList) : baseList;
+            return root.opt("showWorkspacePadding") ? padWorkspaces(baseList) : baseList;
         }
 
         let baseList;
@@ -141,7 +154,7 @@ Item {
         default:
             return [1];
         }
-        return SettingsData.showWorkspacePadding ? padWorkspaces(baseList) : baseList;
+        return root.opt("showWorkspacePadding") ? padWorkspaces(baseList) : baseList;
     }
 
     function getSwayWorkspaces() {
@@ -164,7 +177,7 @@ Item {
             };
         }
 
-        if (!root.screenName || SettingsData.workspaceFollowFocus) {
+        if (!root.screenName || root.opt("workspaceFollowFocus")) {
             return workspaces.slice().sort(swayWorkspaceOrder).map(mapWorkspace);
         }
 
@@ -203,7 +216,7 @@ Item {
     }
 
     function getSwayActiveWorkspace() {
-        if (!root.screenName || SettingsData.workspaceFollowFocus) {
+        if (!root.screenName || root.opt("workspaceFollowFocus")) {
             const focusedWs = I3.workspaces?.values?.find(ws => ws.focused === true);
             return focusedWs ? swayWorkspaceKey(focusedWs) : 1;
         }
@@ -265,13 +278,13 @@ Item {
             ];
         }
 
-        if (!root.screenName || SettingsData.workspaceFollowFocus) {
+        if (!root.screenName || root.opt("workspaceFollowFocus")) {
             filtered = filtered.slice().sort(hyprlandWorkspaceOrder);
         } else {
             filtered = hyprlandMonitorWorkspaces(filtered);
         }
 
-        if (!SettingsData.showOccupiedWorkspacesOnly) {
+        if (!root.opt("showOccupiedWorkspacesOnly")) {
             return filtered;
         }
 
@@ -285,7 +298,7 @@ Item {
     }
 
     function getHyprlandActiveWorkspace() {
-        if (!root.screenName || SettingsData.workspaceFollowFocus) {
+        if (!root.screenName || root.opt("workspaceFollowFocus")) {
             return Hyprland.focusedWorkspace?.id || 1;
         }
 
@@ -295,7 +308,7 @@ Item {
 
     function getWorkspaceIcons(ws) {
         _desktopEntriesUpdateTrigger;
-        if (!SettingsData.showWorkspaceApps || !ws) {
+        if (!root.opt("showWorkspaceApps") || !ws) {
             return [];
         }
 
@@ -459,7 +472,7 @@ Item {
 
     function hyprlandSlotList(raw) {
         const slots = raw.map(ws => _hyprSlot(ws.id > 0 ? ws.id : "name:" + (ws.name ?? ""), ws));
-        if (!SettingsData.showWorkspacePadding)
+        if (!root.opt("showWorkspacePadding"))
             return slots;
         // pad past the highest real id so a placeholder becomes that workspace's slot once created
         let nextId = raw.reduce((max, ws) => Math.max(max, ws.id ?? 0), 0);
@@ -513,7 +526,7 @@ Item {
         ];
 
         let workspaces;
-        if (!root.screenName || SettingsData.workspaceFollowFocus) {
+        if (!root.screenName || root.opt("workspaceFollowFocus")) {
             const currentWorkspaces = NiriService.getCurrentOutputWorkspaces();
             workspaces = currentWorkspaces.length > 0 ? currentWorkspaces : fallbackWorkspaces;
         } else {
@@ -523,7 +536,7 @@ Item {
 
         workspaces = workspaces.slice().sort((a, b) => a.idx - b.idx);
 
-        if (!SettingsData.showOccupiedWorkspacesOnly) {
+        if (!root.opt("showOccupiedWorkspacesOnly")) {
             return workspaces;
         }
 
@@ -539,7 +552,7 @@ Item {
             return 1;
         }
 
-        if (!root.screenName || SettingsData.workspaceFollowFocus) {
+        if (!root.screenName || root.opt("workspaceFollowFocus")) {
             return NiriService.getCurrentWorkspaceNumber();
         }
 
@@ -556,7 +569,7 @@ Item {
         if (!output || !output.tags || output.tags.length === 0)
             return [];
 
-        if (SettingsData.dwlShowAllTags) {
+        if (root.opt("dwlShowAllTags")) {
             return output.tags.map(tag => ({
                         "tag": tag.tag,
                         "state": tag.state,
@@ -653,7 +666,7 @@ Item {
     readonly property real padding: (root.barConfig?.removeWidgetPadding ?? false) ? 0 : Theme.snap((root.barConfig?.widgetPadding ?? 12) * (widgetHeight / 30), dpr)
     readonly property real visualWidth: isVertical ? widgetHeight : (workspaceRow.implicitWidth + padding * 2)
     readonly property real visualHeight: isVertical ? (workspaceRow.implicitHeight + padding * 2) : widgetHeight
-    readonly property real appIconSize: Theme.barIconSize(barThickness, -6 + SettingsData.workspaceAppIconSizeOffset, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
+    readonly property real appIconSize: Theme.barIconSize(barThickness, -6 + root.opt("workspaceAppIconSizeOffset"), root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
 
     // Custom: configurable icon sizes from PluginService (rounded to steps of 2)
     function roundToStep2(val) { return Math.round(val / 2) * 2 }
@@ -962,7 +975,7 @@ Item {
             return index + 1;
 
         let workspaceName = "";
-        if (SettingsData.showWorkspaceName) {
+        if (root.opt("showWorkspaceName")) {
             workspaceName = modelData?.name ?? "";
 
             if (workspaceName && workspaceName !== "") {
@@ -975,7 +988,7 @@ Item {
         }
 
         if (workspaceName) {
-            if (SettingsData.showWorkspaceIndex) {
+            if (root.opt("showWorkspaceIndex")) {
                 const indexLabel = getWorkspaceIndexFallback(modelData, index);
                 return indexLabel ? `${indexLabel}: ${workspaceName}` : workspaceName;
             }
@@ -1104,7 +1117,7 @@ Item {
 
             const delta = wheel.angleDelta.y;
             const isTouchpad = wheel.pixelDelta && wheel.pixelDelta.y !== 0;
-            const reverse = SettingsData.reverseScrolling ? -1 : 1;
+            const reverse = root.opt("reverseScrolling") ? -1 : 1;
 
             if (isTouchpad) {
                 touchpadAccumulator += delta;
@@ -1312,7 +1325,7 @@ Item {
                 property var loadedIcons: []
 
                 readonly property int stableIconCount: {
-                    if (!SettingsData.showWorkspaceApps || isPlaceholder)
+                    if (!root.opt("showWorkspaceApps") || isPlaceholder)
                         return 0;
 
                     let targetWorkspaceId;
@@ -1359,19 +1372,19 @@ Item {
                 }
 
                 readonly property real baseWidth: root.isVertical ? root.barThickness : Theme.spacingS
-                readonly property real baseHeight: root.isVertical ? Theme.spacingS : (SettingsData.showWorkspaceApps ? widgetHeight * 1.0 : widgetHeight * 0.5)
+                readonly property real baseHeight: root.isVertical ? Theme.spacingS : (root.opt("showWorkspaceApps") ? widgetHeight * 1.0 : widgetHeight * 0.5)
 
                 readonly property real iconsExtraWidth: {
-                    if (!root.isVertical && SettingsData.showWorkspaceApps && stableIconCount > 0) {
-                        const numIcons = Math.min(stableIconCount, SettingsData.maxWorkspaceIcons);
+                    if (!root.isVertical && root.opt("showWorkspaceApps") && stableIconCount > 0) {
+                        const numIcons = Math.min(stableIconCount, root.opt("maxWorkspaceIcons"));
                         // Custom: use wsAppIconNormal/wsAppIconActive sizes
                         return (numIcons > 0 ? (numIcons - 1) * root.wsAppIconNormal + root.wsAppIconActive : 0) + (numIcons > 0 ? (numIcons - 1) * Theme.spacingXS : 0) + (isActive ? Theme.spacingXS : 0);
                     }
                     return 0;
                 }
                 readonly property real iconsExtraHeight: {
-                    if (root.isVertical && SettingsData.showWorkspaceApps && stableIconCount > 0) {
-                        const numIcons = Math.min(stableIconCount, SettingsData.maxWorkspaceIcons);
+                    if (root.isVertical && root.opt("showWorkspaceApps") && stableIconCount > 0) {
+                        const numIcons = Math.min(stableIconCount, root.opt("maxWorkspaceIcons"));
                         // Custom: use column layout sizing with negative margins
                         const baseHeight = numIcons * root.wsAppIconNormal + (numIcons - 1) * root.wsAppIconGapInternal;
                         const activeNetChange = root.wsAppIconSizeDiff - 2 * Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2);
@@ -1433,7 +1446,7 @@ Item {
                 readonly property color urgentTextColor: getTextColorForState("urgent")
 
                 readonly property color focusedBorderColor: {
-                    switch (SettingsData.workspaceFocusedBorderColor) {
+                    switch (root.opt("workspaceFocusedBorderColor")) {
                     case "surfaceText":
                         return Theme.surfaceText;
                     case "secondary":
@@ -1473,14 +1486,14 @@ Item {
                     property bool mousePressed: false
 
                     onPressed: mouse => {
-                        if (mouse.button === Qt.LeftButton && CompositorService.isNiri && SettingsData.workspaceDragReorder && !isPlaceholder) {
+                        if (mouse.button === Qt.LeftButton && CompositorService.isNiri && root.opt("workspaceDragReorder") && !isPlaceholder) {
                             mousePressed = true;
                             dragHandler.dragStartPos = Qt.point(mouse.x, mouse.y);
                         }
                     }
 
                     onPositionChanged: mouse => {
-                        if (!mousePressed || !CompositorService.isNiri || !SettingsData.workspaceDragReorder || isPlaceholder)
+                        if (!mousePressed || !CompositorService.isNiri || !root.opt("workspaceDragReorder") || isPlaceholder)
                             return;
 
                         if (!dragHandler.dragging) {
@@ -1594,7 +1607,7 @@ Item {
                             delegateRoot.loadedIsUrgent = wsData?.urgent ?? false;
                         }
 
-                        if (SettingsData.showWorkspaceApps) {
+                        if (root.opt("showWorkspaceApps")) {
                             if (CompositorService.isDwl || CompositorService.isSway || CompositorService.isScroll || CompositorService.isMiracle) {
                                 delegateRoot.loadedIcons = root.getWorkspaceIcons(modelData);
                             } else if (CompositorService.isNiri) {
@@ -1658,17 +1671,17 @@ Item {
                     x: root.isVertical ? (root.widgetHeight - width) / 2 : (parent.width - width) / 2
                     y: root.isVertical ? (parent.height - height) / 2 : (root.widgetHeight - height) / 2
                     width: {
-                        const borderWidth = (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? SettingsData.workspaceFocusedBorderThickness : 0;
+                        const borderWidth = (root.opt("workspaceFocusedBorderEnabled") && isActive && !isPlaceholder) ? root.opt("workspaceFocusedBorderThickness") : 0;
                         return delegateRoot.visualWidth + borderWidth * 2;
                     }
                     height: {
-                        const borderWidth = (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? SettingsData.workspaceFocusedBorderThickness : 0;
+                        const borderWidth = (root.opt("workspaceFocusedBorderEnabled") && isActive && !isPlaceholder) ? root.opt("workspaceFocusedBorderThickness") : 0;
                         return delegateRoot.visualHeight + borderWidth * 2;
                     }
                     radius: Theme.cornerRadius
                     color: "transparent"
-                    border.width: (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? SettingsData.workspaceFocusedBorderThickness : 0
-                    border.color: (SettingsData.workspaceFocusedBorderEnabled && isActive && !isPlaceholder) ? focusedBorderColor : "transparent"
+                    border.width: (root.opt("workspaceFocusedBorderEnabled") && isActive && !isPlaceholder) ? root.opt("workspaceFocusedBorderThickness") : 0
+                    border.color: (root.opt("workspaceFocusedBorderEnabled") && isActive && !isPlaceholder) ? focusedBorderColor : "transparent"
 
                     Behavior on width {
                         NumberAnimation {
@@ -1759,7 +1772,7 @@ Item {
                     Loader {
                         id: appIconsLoader
                         anchors.fill: parent
-                        active: SettingsData.showWorkspaceApps || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
+                        active: root.opt("showWorkspaceApps") || root.opt("showWorkspaceIndex") || root.opt("showWorkspaceName") || loadedHasIcon
                         sourceComponent: Item {
                             id: contentRoot
                             readonly property real contentWidth: contentRow.item?.implicitWidth ?? 0
@@ -1780,7 +1793,7 @@ Item {
                                     id: rowIconsRow
                                     readonly property var iconsContainer: rowIconsRow
                                     spacing: 4
-                                    visible: loadedIcons.length > 0 || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
+                                    visible: loadedIcons.length > 0 || root.opt("showWorkspaceIndex") || root.opt("showWorkspaceName") || loadedHasIcon
 
                                     Item {
                                         visible: loadedHasIcon && loadedIconData?.type === "icon"
@@ -1816,7 +1829,7 @@ Item {
                                     }
 
                                     Item {
-                                        visible: ((SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName) && !loadedHasIcon) || (loadedHasIcon && SettingsData.showWorkspaceName && hasWorkspaceName)
+                                        visible: ((root.opt("showWorkspaceIndex") || root.opt("showWorkspaceName")) && !loadedHasIcon) || (loadedHasIcon && root.opt("showWorkspaceName") && hasWorkspaceName)
                                         width: wsIndexText.implicitWidth + (isActive && loadedIcons.length > 0 ? 4 : 0)
                                         height: root.wsAppIconActive
 
@@ -1833,7 +1846,7 @@ Item {
 
                                     Repeater {
                                         model: ScriptModel {
-                                            values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
+                                            values: loadedIcons.slice(0, root.opt("maxWorkspaceIcons"))
                                         }
                                         delegate: Item {
                                             // Custom: use wsAppIconActive/wsAppIconNormal sizes
@@ -1934,7 +1947,7 @@ Item {
                                 Column {
                                     readonly property var iconsContainer: colIconsLayout
                                     spacing: 4
-                                    visible: loadedIcons.length > 0 || SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName || loadedHasIcon
+                                    visible: loadedIcons.length > 0 || root.opt("showWorkspaceIndex") || root.opt("showWorkspaceName") || loadedHasIcon
 
                                     // Custom: workspace name/number and icon header
                                     Column {
@@ -1942,7 +1955,7 @@ Item {
                                         spacing: 0
 
                                         StyledText {
-                                            visible: SettingsData.showWorkspaceIndex || SettingsData.showWorkspaceName
+                                            visible: root.opt("showWorkspaceIndex") || root.opt("showWorkspaceName")
                                             text: root.getWorkspaceIndex(modelData, index)
                                             // Custom: per-state text colors
                                             color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
@@ -1988,7 +2001,7 @@ Item {
                                             id: colIconsLayout
                                             width: root.wsAppIconActive
 
-                                            property int numIcons: Math.min(loadedIcons.length, SettingsData.maxWorkspaceIcons)
+                                            property int numIcons: Math.min(loadedIcons.length, root.opt("maxWorkspaceIcons"))
                                             property real activeMargin: -Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2)
                                             property real baseHeight: numIcons * root.wsAppIconNormal + (numIcons - 1) * root.wsAppIconGapInternal
                                             property real activeNetChange: root.wsAppIconSizeDiff - 2 * Math.min(root.wsAppIconGapInternal, root.wsAppIconSizeDiff / 2)
@@ -1999,7 +2012,7 @@ Item {
 
                                             Repeater {
                                                 model: ScriptModel {
-                                                    values: loadedIcons.slice(0, SettingsData.maxWorkspaceIcons)
+                                                    values: loadedIcons.slice(0, root.opt("maxWorkspaceIcons"))
                                                 }
                                                 delegate: Item {
                                                     readonly property var windowId: modelData.windowId

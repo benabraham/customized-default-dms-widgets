@@ -64,8 +64,7 @@ BasePill {
     property real touchpadThreshold: 100
 
     onWheel: function (wheelEvent) {
-        // Support new audioScrollMode API with fallback to old audioScrollEnabled
-        const scrollMode = typeof SettingsData.audioScrollMode !== "undefined" ? SettingsData.audioScrollMode : (SettingsData.audioScrollEnabled ? "volume" : "nothing")
+        const scrollMode = SettingsData.widgetOption("music", widgetData, "audioScrollMode")
         if (scrollMode === "nothing")
             return
 

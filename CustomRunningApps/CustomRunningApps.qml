@@ -225,9 +225,10 @@ BasePill {
     property int _toplevelsUpdateTrigger: 0
     property int _appIdSubstitutionsTrigger: 0
 
-    readonly property bool _currentWorkspace: widgetData?.runningAppsCurrentWorkspace !== undefined ? widgetData.runningAppsCurrentWorkspace : SettingsData.runningAppsCurrentWorkspace
-    readonly property bool _currentMonitor: widgetData?.runningAppsCurrentMonitor !== undefined ? widgetData.runningAppsCurrentMonitor : SettingsData.runningAppsCurrentMonitor
-    readonly property bool _groupByApp: widgetData?.runningAppsGroupByApp !== undefined ? widgetData.runningAppsGroupByApp : SettingsData.runningAppsGroupByApp
+    readonly property bool _currentWorkspace: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCurrentWorkspace")
+    readonly property bool _currentMonitor: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCurrentMonitor")
+    readonly property bool _groupByApp: SettingsData.widgetOption("runningApps", widgetData, "runningAppsGroupByApp")
+    readonly property bool _compactMode: SettingsData.widgetOption("runningApps", widgetData, "runningAppsCompactMode")
 
     readonly property var sortedToplevels: {
         _toplevelsUpdateTrigger;
@@ -997,7 +998,7 @@ BasePill {
                         readonly property bool useDashSplit: hasDashPattern && effectiveTextWidth >= suffixWidth * 1.5
 
                         readonly property real visualWidth: {
-                            const compact = root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode);
+                            const compact = root.forceCompactMode || root._compactMode;
                             // Text width: 0 if compact, otherwise effective (constrained) text width + spacing
                             const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + root.pillPadding : 0);
                             return root.pillPadding + root.appIconSize + root.iconTitleSpacing + textWidth;
@@ -1069,7 +1070,7 @@ BasePill {
                             IconImage {
                                 id: iconImg
                                 anchors.left: parent.left
-                                anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
+                                anchors.leftMargin: root._compactMode ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: root.appIconSize
                                 height: root.appIconSize
@@ -1099,7 +1100,7 @@ BasePill {
 
                             DankIcon {
                                 anchors.left: parent.left
-                                anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
+                                anchors.leftMargin: root._compactMode ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                                 anchors.verticalCenter: parent.verticalCenter
                                 size: root.appIconSize
                                 name: "sports_esports"
@@ -1111,7 +1112,7 @@ BasePill {
                             // Fallback icon if no icon found
                             Rectangle {
                                 anchors.left: parent.left
-                                anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
+                                anchors.leftMargin: root._compactMode ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: root.appIconSize
                                 height: root.appIconSize
@@ -1134,14 +1135,14 @@ BasePill {
                                     }
                                     font.pixelSize: 12
                                     font.weight: Font.Bold
-                                    color: Theme.onSecondary
+                                    color: Theme.widgetTextColor
                                 }
                             }
 
                             Rectangle {
                                 anchors.right: parent.right
                                 anchors.bottom: parent.bottom
-                                anchors.rightMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? -2 : 2
+                                anchors.rightMargin: root._compactMode ? -2 : 2
                                 anchors.bottomMargin: -2
                                 width: 14
                                 height: 14
@@ -1173,7 +1174,7 @@ BasePill {
                                 anchors.left: iconImg.right
                                 anchors.leftMargin: root.iconTitleSpacing
                                 anchors.verticalCenter: parent.verticalCenter
-                                visible: !(root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode))
+                                visible: !(root.forceCompactMode || root._compactMode)
                                 clip: true
                                 width: effectiveTextWidth
 
@@ -1364,7 +1365,7 @@ BasePill {
                             const naturalWidth = widthManager.originalWidths[stableId] || 0
                             const maxWidth = widthManager.constrainedWidths[stableId]
                             const effectiveTextWidth = (maxWidth !== undefined && maxWidth >= 0) ? Math.min(naturalWidth, maxWidth) : naturalWidth
-                            const compact = root.forceCompactMode || (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode)
+                            const compact = root.forceCompactMode || root._compactMode
                             const textWidth = compact ? 0 : (effectiveTextWidth > 0 ? effectiveTextWidth + root.pillPadding : 0)
                             const pillWidth = root.pillPadding + root.appIconSize + root.iconTitleSpacing + textWidth
 
@@ -1471,7 +1472,7 @@ BasePill {
                         }
                         return appName + (windowTitle ? " • " + windowTitle : "");
                     }
-                    readonly property real visualWidth: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? root.iconCellSize : (root.iconCellSize + Theme.spacingXS + 120)
+                    readonly property real visualWidth: root._compactMode ? root.iconCellSize : (root.iconCellSize + Theme.spacingXS + 120)
 
                     // Niri window data (layout, floating status)
                     readonly property var niriWindow: root.getNiriWindow(toplevelData)
@@ -1545,7 +1546,7 @@ BasePill {
                         IconImage {
                             id: iconImg
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)) / 2) : Theme.spacingXS
+                            anchors.leftMargin: root._compactMode ? Math.round((parent.width - Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)) / 2) : Theme.spacingXS
                             anchors.verticalCenter: parent.verticalCenter
                             width: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
                             height: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
@@ -1582,7 +1583,7 @@ BasePill {
 
                         DankIcon {
                             anchors.left: parent.left
-                            anchors.leftMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? Math.round((parent.width - Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)) / 2) : Theme.spacingXS
+                            anchors.leftMargin: root._compactMode ? Math.round((parent.width - Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)) / 2) : Theme.spacingXS
                             anchors.verticalCenter: parent.verticalCenter
                             size: Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)
                             name: "sports_esports"
@@ -1610,7 +1611,7 @@ BasePill {
                         Rectangle {
                             anchors.right: parent.right
                             anchors.bottom: parent.bottom
-                            anchors.rightMargin: (widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode) ? -2 : 2
+                            anchors.rightMargin: root._compactMode ? -2 : 2
                             anchors.bottomMargin: -2
                             width: 14
                             height: 14
@@ -1634,7 +1635,7 @@ BasePill {
                             anchors.right: parent.right
                             anchors.rightMargin: Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
-                            visible: !(widgetData?.runningAppsCompactMode !== undefined ? widgetData.runningAppsCompactMode : SettingsData.runningAppsCompactMode)
+                            visible: !root._compactMode
                             text: windowTitle
                             font.pixelSize: Theme.barTextSize(barThickness, barConfig?.fontScale, barConfig?.maximizeWidgetText)
                             color: root.getTextColor(isFocused)
