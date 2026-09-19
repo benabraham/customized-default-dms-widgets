@@ -133,16 +133,13 @@ BasePill {
 
     Connections {
         target: PluginService
-        function onPluginDataChanged(pluginId, key) {
-            if (pluginId === "CustomFocusedApp") {
-                if (key === "stripAppName") {
-                    root.stripAppName = PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true);
-                } else if (key === "appIconSize") {
-                    root.appIconSize = PluginService.loadPluginData("CustomFocusedApp", "appIconSize", 28);
-                } else if (key === "iconTitleSpacing") {
-                    root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomFocusedApp", "iconTitleSpacing", "S");
-                }
-            }
+        // pluginDataChanged carries only the plugin id, so reload every value.
+        function onPluginDataChanged(pluginId) {
+            if (pluginId !== "CustomFocusedApp")
+                return;
+            root.stripAppName = PluginService.loadPluginData("CustomFocusedApp", "stripAppName", true);
+            root.appIconSize = PluginService.loadPluginData("CustomFocusedApp", "appIconSize", 28);
+            root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomFocusedApp", "iconTitleSpacing", "S");
         }
     }
 

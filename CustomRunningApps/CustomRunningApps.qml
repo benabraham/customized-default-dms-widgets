@@ -267,42 +267,26 @@ BasePill {
     // ── PluginService reload ──
     Connections {
         target: PluginService
-        function onPluginDataChanged(pluginId, key) {
-            if (pluginId === "CustomRunningApps") {
-                if (key === "stripAppName") {
-                    root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true);
-                } else if (key === "compressionBias") {
-                    root.compressionBias = parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"));
-                } else if (key === "titleDebounce") {
-                    root.titleDebounce = parseInt(PluginService.loadPluginData("CustomRunningApps", "titleDebounce", "300"));
-                } else if (key === "debugMode") {
-                    root.debugMode = PluginService.loadPluginData("CustomRunningApps", "debugMode", false);
-                } else if (key === "appIconSize") {
-                    root.appIconSize = PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24);
-                } else if (key === "pillSpacing") {
-                    root.pillSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "pillSpacing", "S");
-                } else if (key === "widgetPadding") {
-                    root.widgetPaddingPreset = PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M");
-                } else if (key === "iconTitleSpacing") {
-                    root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S");
-                } else if (key === "showStackingTabbing") {
-                    root.showStackingTabbing = PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true);
-                } else if (key === "flatOuterEdge") {
-                    root.flatOuterEdge = PluginService.loadPluginData("CustomRunningApps", "flatOuterEdge", false);
-                } else if (key === "focusedColorMode") {
-                    root.focusedColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedColorMode", "surfaceContainerHighest");
-                } else if (key === "unfocusedColorMode") {
-                    root.unfocusedColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedColorMode", "transparent");
-                } else if (key === "focusedOpacity") {
-                    root.focusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "focusedOpacity", "100"));
-                } else if (key === "unfocusedOpacity") {
-                    root.unfocusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "unfocusedOpacity", "0"));
-                } else if (key === "focusedTextColorMode") {
-                    root.focusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedTextColorMode", "auto");
-                } else if (key === "unfocusedTextColorMode") {
-                    root.unfocusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedTextColorMode", "auto");
-                }
-            }
+        // pluginDataChanged carries only the plugin id, so reload every value.
+        function onPluginDataChanged(pluginId) {
+            if (pluginId !== "CustomRunningApps")
+                return;
+            root.stripAppName = PluginService.loadPluginData("CustomRunningApps", "stripAppName", true);
+            root.compressionBias = parseFloat(PluginService.loadPluginData("CustomRunningApps", "compressionBias", "0"));
+            root.titleDebounce = parseInt(PluginService.loadPluginData("CustomRunningApps", "titleDebounce", "300"));
+            root.debugMode = PluginService.loadPluginData("CustomRunningApps", "debugMode", false);
+            root.appIconSize = PluginService.loadPluginData("CustomRunningApps", "appIconSize", 24);
+            root.pillSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "pillSpacing", "S");
+            root.widgetPaddingPreset = PluginService.loadPluginData("CustomRunningApps", "widgetPadding", "M");
+            root.iconTitleSpacingPreset = PluginService.loadPluginData("CustomRunningApps", "iconTitleSpacing", "S");
+            root.showStackingTabbing = PluginService.loadPluginData("CustomRunningApps", "showStackingTabbing", true);
+            root.flatOuterEdge = PluginService.loadPluginData("CustomRunningApps", "flatOuterEdge", false);
+            root.focusedColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedColorMode", "surfaceContainerHighest");
+            root.unfocusedColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedColorMode", "transparent");
+            root.focusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "focusedOpacity", "100"));
+            root.unfocusedOpacity = parseFloat(PluginService.loadPluginData("CustomRunningApps", "unfocusedOpacity", "0"));
+            root.focusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "focusedTextColorMode", "auto");
+            root.unfocusedTextColorMode = PluginService.loadPluginData("CustomRunningApps", "unfocusedTextColorMode", "auto");
         }
     }
 
