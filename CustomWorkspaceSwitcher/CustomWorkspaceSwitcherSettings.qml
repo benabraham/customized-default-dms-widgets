@@ -102,6 +102,18 @@ PluginSettings {
         defaultValue: false
     }
 
+    SelectionSetting {
+        settingKey: "indicatorStyle"
+        label: "Indicator Style"
+        description: "Pills fill the workspace, lines underline it, cards outline inactive ones"
+        options: [
+            { label: "Pills", value: "pills" },
+            { label: "Lines", value: "lines" },
+            { label: "Cards", value: "cards" }
+        ]
+        defaultValue: "pills"
+    }
+
     // Active (focused) workspace colors
     SelectionSetting {
         settingKey: "activeColorMode"
