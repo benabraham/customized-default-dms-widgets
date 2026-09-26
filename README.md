@@ -4,13 +4,45 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-09-19
-**Base commit:** `b5415caa` (bar: stop hidden pills from catching clicks (#3488)) — `upstream/master` tip
+**Last synced:** 2026-09-26
+**Base commit:** `09e7ea02` (lyrics: share one mpris controller via LyricsService, accept plain sources) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `48402bba` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `dms run` resolves through `~/.local/bin/dms` to a `dms-shell-1.7-beta+date=2026-09-19_dirty` store path built from that HEAD, and `git diff upstream/master HEAD -- quickshell/Modules/DankBar/Widgets/ quickshell/Modules/Plugins/` is empty, so every file we fork is byte-identical to `upstream/master` (verified this sync). `dms-debug-srv.service` runs its own `dms-shell-1.7-beta+date=2026-09-19_b5415ca` store path. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `b90bd221` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `~/.local/bin/dms` resolves to a `dms-shell-1.7-beta+date=2026-09-26_b90bd22` store path built from that HEAD. `git diff upstream/master HEAD -- quickshell/Modules/DankBar/Widgets/` is empty; `quickshell/Modules/Plugins/PluginComponent.qml` carries one fork-only line (`ccDetailFitsContent`, DDC). The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `0f565361`)
+### Applied in this sync (since `b5415caa`)
+
+115 upstream commits; four touch forked widgets, all four ported.
+
+- **CustomSystemTrayBar** — `60342b74` "fix: stabilize tray item key to prevent position jumps
+  on property changes (#3386)". **This one was already biting:** the running build carries the
+  matching `SessionData` v7 migration, which rewrote the saved `trayItemOrder` from
+  `id::tooltipTitle` to plain ids, while the plugin still generated `id::tooltipTitle` keys — so
+  any item whose tooltip title differs from its id fell out of its saved position. Ported as-is:
+  `getTrayItemKey()` now pins a per-instance key (`id`, or `id::n` for same-id siblings, reusing
+  free slots) in `_trayKeyByItem`, cleared by a `SystemTray.onItemUnregistered` `Connections`;
+  `resolveOrderIndex()` and `isTrayIdHidden()` wrap the lookups.
+- **CustomMedia** — `4c65efc4` "bar/media: fix icon scaling" + the `iconFilled: false` line of
+  `4eb16353`: the play button fills its `PlayButton` slot (`buttonSize: parent.width`,
+  `iconSize: 14 * contentScale`, press/checked radius) instead of being `scale`d up from
+  `Theme.buttonHeightS`, and uses the outlined glyph.
+- **CustomMedia** — `4b926be0` (text part only), *adapted*. The `ScrollingText` gets its final
+  width up front instead of `anchors.fill` on the animating container, so the title doesn't
+  re-layout on every frame of the width animation. Upstream binds it to
+  `contentRoot.measuredTextWidth`; our equivalent is `root.textWidth > 0 ? root.textWidth :
+  implicitTextWidth`, which keeps the unlimited-width mode (`textWidth === -1`).
+- **CustomWorkspaceSwitcher** — `df71c654` "feat(workspaces): add lines & card indicator
+  styles", *adapted*. The style is a `PluginService` setting (`indicatorStyle`, default
+  `pills`, selector in the plugin settings) rather than the `workspaceIndicatorStyle` widget
+  option, which plugin bar entries can't set. Taken: `appIconsLoader` moved out of
+  `visualContent` to a delegate-level sibling (mirrors its opacity and drag `Translate`), the
+  underline shifts for lines, the transparent outlined inactive frame and the occupied block for
+  cards. Lines swap only the cross size to `lineThickness`; upstream's per-style
+  `activeRatio`/`compactRatio` changes don't apply, since the main-axis sizing is ours. Cards
+  radii are `min(<flat-edge radius>, cornerRadiusXS)`, so `flatOuterEdge` still wins; the
+  urgent/drag outline stays at our `2` px rather than `Theme.outlineWidthFocused`.
+
+### Applied in the 2026-09-19 sync (since `0f565361`)
 
 93 upstream commits. One of them — the `8e9cd3f4` squash — rewrote the whole bar widget
 layer, so this sync is much larger than usual: `BasePill` became a one-line alias for the new
@@ -69,7 +101,7 @@ carries an `optionDefaults` map (`showWorkspaceApps`, `showWorkspaceIndex`,
 RunningApps) — our focused/unfocused colours come from the PluginService colour modes.
 `014c69b0` (workspace tile colour restyle) — same reason.
 
-### Drive-by fixes in this sync
+### Drive-by fixes in the 2026-09-19 sync
 
 - `PluginService.pluginDataChanged` only ever carried the plugin id, but all four plugins
   declared `onPluginDataChanged(pluginId, key)` and branched on `key`. No plugin setting has
@@ -292,6 +324,8 @@ Changes:
   - Individual opacity sliders (0-100%) for each state
 - **Custom text/icon colors** - Auto-contrast or manual selection for each state
 - **Flat outer edge** - Option to remove rounded corners on the screen-edge side
+- **Indicator style** - `indicatorStyle` (`pills`/`lines`/`cards`, default `pills`) via
+  `PluginService`, in place of upstream's `workspaceIndicatorStyle` widget option
 
 ## Screensaver
 
