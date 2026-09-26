@@ -21,6 +21,9 @@ No build/lint/test commands - QML plugins are loaded directly by DMS at runtime.
 transient stdio and process group, so the shell dies the moment the call returns — leaving the user
 with no bar. Ask the user to run it, or start it fully detached:
 `setsid nohup ~/.local/bin/dms run -d > /tmp/dms-shell.log 2>&1 < /dev/null & disown`.
+Wrapping `dms restart` itself in `setsid nohup … & disown` does **not** work: it signals the
+running daemon (`SIGUSR1`) and the shell still dies with no respawn (seen 2026-09-26). If a shell
+is already running, stop it first (`pkill -f 'dms run -d'`), then use the `dms run -d` line above.
 That log only carries the Go daemon's lines; `quickshell`'s stderr goes to a pipe the daemon owns,
 so QML warnings (binding loops included) are not readable this way.
 
