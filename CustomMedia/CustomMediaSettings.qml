@@ -47,6 +47,20 @@ PluginSettings {
         defaultValue: false
     }
 
+    ToggleSetting {
+        settingKey: "showLyrics"
+        label: "Show Lyrics"
+        description: "Show the current synced lyric line instead of the track title"
+        defaultValue: false
+    }
+
+    ToggleSetting {
+        settingKey: "showCoverArt"
+        label: "Show Cover Art"
+        description: "Show the album cover next to the title"
+        defaultValue: false
+    }
+
     StyledText {
         text: "Note: After changing settings, you may need to re-add the widget to the bar for changes to take effect."
         font.pixelSize: Theme.fontSizeSmall
