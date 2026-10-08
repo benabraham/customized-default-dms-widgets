@@ -7,6 +7,7 @@ import Quickshell.Widgets
 import qs.Common
 import qs.Modules.Plugins
 import qs.Services
+import qs.DCommon.Widgets
 import qs.Widgets
 
 BasePill {
@@ -227,20 +228,7 @@ BasePill {
     readonly property bool _currentMonitor: root.opt("runningAppsCurrentMonitor")
     readonly property bool _groupByApp: root.opt("runningAppsGroupByApp")
     readonly property bool _compactMode: root.opt("runningAppsCompactMode")
-    readonly property string windowModelKey: {
-        if (_groupByApp)
-            return "appId";
-        switch (CompositorService.compositor) {
-        case "aqueous":
-            return AqueousService.available ? "aqueousKey" : "address";
-        case "niri":
-            return "niriWindowId";
-        case "mango":
-            return "mangoWindowId";
-        default:
-            return "address";
-        }
-    }
+    readonly property string windowModelKey: _groupByApp ? "appId" : CompositorService.toplevelKey
 
     readonly property var sortedToplevels: {
         _toplevelsUpdateTrigger;
@@ -1094,7 +1082,7 @@ BasePill {
                                 }
                             }
 
-                            DankIcon {
+                            DIcon {
                                 anchors.left: parent.left
                                 anchors.leftMargin: root._compactMode ? Math.round((parent.width - root.appIconSize) / 2) : root.pillPadding
                                 anchors.verticalCenter: parent.verticalCenter
@@ -1151,7 +1139,7 @@ BasePill {
                                     anchors.centerIn: parent
                                     text: windowCount > 9 ? "9+" : windowCount
                                     font.pixelSize: 9
-                                    color: Theme.surface
+                                    color: Theme.onPrimary
                                 }
                             }
 
@@ -1206,7 +1194,7 @@ BasePill {
                                 color: Theme.warning
                             }
 
-                            DankRipple {
+                            DRipple {
                                 id: itemRipple
                                 cornerRadius: Theme.cornerRadius
                             }
@@ -1550,7 +1538,7 @@ BasePill {
                             z: 1
                         }
 
-                        DankIcon {
+                        DIcon {
                             anchors.left: parent.left
                             anchors.leftMargin: root._compactMode ? Math.round((parent.width - Theme.barIconSize(root.barThickness, undefined, root.barConfig?.maximizeWidgetIcons, root.barConfig?.iconScale)) / 2) : Theme.spacingXS
                             anchors.verticalCenter: parent.verticalCenter
@@ -1593,7 +1581,7 @@ BasePill {
                                 anchors.centerIn: parent
                                 text: windowCount > 9 ? "9+" : windowCount
                                 font.pixelSize: 9
-                                color: Theme.surface
+                                color: Theme.onPrimary
                             }
                         }
 
@@ -1624,7 +1612,7 @@ BasePill {
                             color: Theme.warning
                         }
 
-                        DankRipple {
+                        DRipple {
                             id: itemRipple
                             cornerRadius: Theme.cornerRadius
                         }
@@ -1801,7 +1789,7 @@ BasePill {
 
         active: false
 
-        sourceComponent: DankTooltip {}
+        sourceComponent: DTooltip {}
     }
 
     // ── Context menu ──
@@ -1821,7 +1809,7 @@ BasePill {
         windowContextMenu.openFromBar(item ? root.menuAnchorFor(item) : root.contextMenuAnchor());
     }
 
-    DankContextMenu {
+    DContextMenu {
         id: windowContextMenu
 
         property var currentWindow: null
@@ -1849,14 +1837,14 @@ BasePill {
                 items.push({
                     type: "item",
                     icon: "outbox",
-                    text: I18n.tr("Move out of scratchpad"),
+                    text: I18n.tr("Move out of scratchpad", "window context menu action, brings the window back from the special workspace"),
                     action: () => CompositorService.moveWindowOutOfSpecial(windowContextMenu.currentWindow)
                 });
             for (const name of scratchpad ? [] : CompositorService.specialWorkspaceNames) {
                 items.push({
                     type: "item",
                     icon: "inbox",
-                    text: name === "special" ? I18n.tr("Move to scratchpad") : I18n.tr("Move to scratchpad: %1", "%1 is the named special workspace").arg(name),
+                    text: name === "special" ? I18n.tr("Move to scratchpad", "window context menu action, sends the window to the unnamed special workspace") : I18n.tr("Move to scratchpad: %1", "%1 is the named special workspace").arg(name),
                     action: () => CompositorService.moveWindowToSpecial(windowContextMenu.currentWindow, name)
                 });
             }

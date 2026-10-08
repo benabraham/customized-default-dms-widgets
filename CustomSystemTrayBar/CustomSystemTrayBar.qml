@@ -3,10 +3,11 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Services.SystemTray
 import qs.Common
-import qs.Modules.DankBar
-import qs.Modules.DankBar.Widgets
+import qs.Modules.DBar
+import qs.Modules.DBar.Widgets
 import qs.Modules.Plugins
 import qs.Services
+import qs.DCommon.Widgets
 import qs.Widgets
 
 BasePill {
@@ -508,10 +509,8 @@ BasePill {
     function _openOverflowAt(triggerItem) {
         if (!triggerItem || !root.parentScreen)
             return;
-        const barPosition = root.axis?.edge === "left" ? 2 : (root.axis?.edge === "right" ? 3 : (root.axis?.edge === "top" ? 0 : 1));
-        const triggerPos = triggerItem.mapToItem(null, 0, root.isVerticalOrientation ? (triggerItem.height / 2 + root.minTooltipY) : 0);
-        const pos = SettingsData.getPopupTriggerPosition(triggerPos, root.parentScreen, root.barThickness, triggerItem.width, root.barSpacing, barPosition, root.barConfig);
-        overflowPopout.setTriggerPosition(pos.x, pos.y, pos.width, root.section, root.parentScreen, barPosition, root.barThickness, root.barSpacing, root.barConfig);
+        if (!root.positionPopout(overflowPopout, triggerItem, root.isVerticalOrientation ? triggerItem.height : triggerItem.width))
+            return;
         root.menuOpen = true;
         PopoutManager.requestPopout(overflowPopout, undefined, "tray-overflow-" + root.section);
     }
@@ -552,7 +551,7 @@ BasePill {
         return rows * itemSize + (rows - 1) * spacing + popupPadding * 2;
     }
 
-    DankPopout {
+    DPopout {
         id: overflowPopout
         layerNamespace: "dms:tray-overflow"
         screen: root.parentScreen
@@ -561,7 +560,7 @@ BasePill {
         content: overflowContentComponent
     }
 
-    DankPopout {
+    DPopout {
         id: trayMenuPopout
         layerNamespace: "dms:tray-menu"
         screen: root.parentScreen
@@ -649,14 +648,14 @@ BasePill {
                     pressed: caretArea.pressed
                     color: caretArea.containsMouse || caretArea.pressed ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
 
-                    DankIcon {
+                    DIcon {
                         anchors.centerIn: parent
                         name: root.toggleIconName()
                         size: root.trayIconSize
                         color: Theme.widgetTextColor
                     }
 
-                    DankRipple {
+                    DRipple {
                         id: caretRipple
                         cornerRadius: caretButton.radius
                     }
@@ -748,7 +747,7 @@ BasePill {
                     source: iconSource
                 }
 
-                DankRipple {
+                DRipple {
                     id: inlineItemRipple
                     cornerRadius: inlineVisualContent.radius
                 }
@@ -864,7 +863,7 @@ BasePill {
                     source: delegateRoot.iconSource
                 }
 
-                DankRipple {
+                DRipple {
                     id: itemRipple
                     topLeftRadius: visualContent.topLeftRadius
                     topRightRadius: visualContent.topRightRadius
@@ -987,14 +986,14 @@ BasePill {
                     pressed: caretAreaVert.pressed
                     color: caretAreaVert.containsMouse || caretAreaVert.pressed ? Theme.primaryHover : Theme.withAlpha(Theme.primaryHover, 0)
 
-                    DankIcon {
+                    DIcon {
                         anchors.centerIn: parent
                         name: root.toggleIconName()
                         size: root.trayIconSize
                         color: Theme.widgetTextColor
                     }
 
-                    DankRipple {
+                    DRipple {
                         id: caretRippleVert
                         cornerRadius: caretButtonVert.radius
                     }
@@ -1040,7 +1039,7 @@ BasePill {
         }
     }
 
-    // Overflow grid content rendered inside DankPopout
+    // Overflow grid content rendered inside DPopout
     Component {
         id: overflowContentComponent
 
@@ -1318,7 +1317,7 @@ BasePill {
                     trayMenuState.close();
             }
 
-            DankFlickable {
+            DFlickable {
                 id: menuFlickable
                 anchors.fill: parent
                 anchors.margins: Theme.spacingS
@@ -1357,7 +1356,7 @@ BasePill {
                             width: parent.width - Theme.spacingS * 2 - (Theme.iconSizeSmall + Theme.spacingS)
                         }
 
-                        DankIcon {
+                        DIcon {
                             anchors.right: parent.right
                             anchors.rightMargin: Theme.spacingS
                             anchors.verticalCenter: parent.verticalCenter
@@ -1411,7 +1410,7 @@ BasePill {
                             anchors.verticalCenter: parent.verticalCenter
                             spacing: Theme.spacingXS
 
-                            DankIcon {
+                            DIcon {
                                 name: "arrow_back"
                                 size: Theme.iconSizeSmall
                                 color: Theme.widgetTextColor
@@ -1508,7 +1507,7 @@ BasePill {
                                         visible: menuEntry?.checkState === 2
                                     }
 
-                                    DankIcon {
+                                    DIcon {
                                         anchors.centerIn: parent
                                         name: "check"
                                         size: Theme.iconSizeSmall - Theme.spacingXS - Theme.spacingXXS
@@ -1550,7 +1549,7 @@ BasePill {
                                     Layout.alignment: Qt.AlignVCenter
                                     visible: menuEntry?.hasChildren ?? false
 
-                                    DankIcon {
+                                    DIcon {
                                         anchors.centerIn: parent
                                         name: "chevron_right"
                                         size: Theme.iconSizeSmall - 2
@@ -1576,7 +1575,11 @@ BasePill {
         const tw = triggerWidth || root.width;
         const pos = SettingsData.getPopupTriggerPosition(localPos, screen, root.barThickness, tw, root.barSpacing, barPosition, root.barConfig);
 
-        trayMenuPopout.setTriggerPosition(pos.x, pos.y, pos.width, root.section, screen, barPosition, root.barThickness, root.barSpacing, root.barConfig);
+        const registration = BarWidgetService.registrationForItem(root);
+        if (registration?.context?.owner?.overflowAnchor)
+            registration.context.surface.positionPopout(trayMenuPopout, root, root.section);
+        else
+            trayMenuPopout.setTriggerPosition(pos.x, pos.y, pos.width, root.section, screen, barPosition, root.barThickness, root.barSpacing, root.barConfig);
 
         trayMenuState.trayItem = item;
         trayMenuState.menuHandle = item?.menu ?? null;
