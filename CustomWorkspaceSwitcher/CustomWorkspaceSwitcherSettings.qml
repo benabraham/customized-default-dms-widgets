@@ -105,13 +105,39 @@ PluginSettings {
     SelectionSetting {
         settingKey: "indicatorStyle"
         label: "Indicator Style"
-        description: "Pills fill the workspace, lines underline it, cards outline inactive ones"
+        description: "Pills fill the workspace, lines underline it, cards outline inactive ones, dots shrink it to a dot"
         options: [
             { label: "Pills", value: "pills" },
             { label: "Lines", value: "lines" },
-            { label: "Cards", value: "cards" }
+            { label: "Cards", value: "cards" },
+            { label: "Dots", value: "dots" }
         ]
         defaultValue: "pills"
+    }
+
+    ToggleSetting {
+        settingKey: "indicatorCompact"
+        label: "Compact Indicators"
+        description: "Shrink lines and dots"
+        defaultValue: false
+    }
+
+    ToggleSetting {
+        settingKey: "indicatorRoundnessCustom"
+        label: "Custom Roundness"
+        description: "Override the corner roundness of the indicators; off follows the theme"
+        defaultValue: false
+    }
+
+    RealSliderSetting {
+        settingKey: "indicatorRoundness"
+        label: "Indicator Roundness"
+        description: "Corner radius as a share of half the indicator thickness"
+        defaultValue: 50
+        minimum: 0
+        maximum: 100
+        stepSize: 5
+        decimals: 0
     }
 
     // Active (focused) workspace colors

@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import qs.Common
+import qs.DCommon.Widgets
 import qs.Widgets
 import qs.Modules.Plugins
 import qs.Services
@@ -67,7 +68,7 @@ Column {
             anchors.verticalCenter: parent.verticalCenter
         }
 
-        DankActionButton {
+        DActionButton {
             buttonSize: 28
             iconName: "refresh"
             iconSize: 16
