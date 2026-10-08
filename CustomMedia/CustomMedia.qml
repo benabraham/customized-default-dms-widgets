@@ -152,7 +152,7 @@ BasePill {
 
     content: Component {
         Item {
-            implicitWidth: root.playerAvailable ? (root.textWidth === -1 ? mediaRow.implicitWidth : root.currentContentWidth) : 0
+            implicitWidth: root.playerAvailable ? (root.isVerticalOrientation ? root.currentContentWidth : mediaRow.implicitWidth) : 0
             implicitHeight: root.playerAvailable ? root.currentContentHeight : 0
             opacity: root.playerAvailable ? 1 : 0
 
