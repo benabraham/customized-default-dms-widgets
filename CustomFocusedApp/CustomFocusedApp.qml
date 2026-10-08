@@ -5,8 +5,9 @@ import Quickshell.Wayland
 import Quickshell.Widgets
 import qs.Common
 import qs.Modules.Plugins
-import qs.Modules.DankBar.Widgets
+import qs.Modules.DBar.Widgets
 import qs.Services
+import qs.DCommon.Widgets
 import qs.Widgets
 
 BasePill {
@@ -14,62 +15,17 @@ BasePill {
 
     property var widgetData: null
     property bool compactMode: SettingsData.widgetOption("focusedWindow", widgetData, "focusedWindowCompactMode")
-    property int availableWidth: 400
-    // Custom: WidgetHost injects this through a duck-typed Binding (WidgetHost.qml) for any widget
-    // that declares it, plugins included — same mechanism as crossEdgeExtension. For the centre
-    // section DankBarContent feeds it the live gap between the left and right sections. Without it
-    // the pill grew unbounded and painted over — and swallowed clicks for — the side widget groups.
-    property real sectionAvailablePrimarySize: 0
-    property var barCenterSection: null
-    property var barCenterWrapper: null
-    property var barLeftSection: null
-    property var barRightSection: null
-    // Custom: width the other centre-section widgets already claim. Read from our siblings rather
-    // than from the section's own width, so the expression never depends on our width (binding loop).
-    // Each wrapper carries itemSpacing, and there are exactly as many siblings as inter-widget gaps.
-    // Our own chain is BasePill -> WidgetHost(Loader) -> wrapper Item -> CenterSection, so the
-    // sibling set is the section's children minus the wrapper we sit under.
-    readonly property real centerSiblingsWidth: {
-        const section = root.barCenterSection;
-        const wrapper = root.barCenterWrapper;
-        if (!section?.children || !wrapper)
-            return 0;
-        let total = 0;
-        for (let i = 0; i < section.children.length; i++) {
-            const child = section.children[i];
-            if (child === wrapper || !child.visible || child.width <= 0)
-                continue;
-            total += child.width + (child.itemSpacing ?? 0);
-        }
-        return total;
-    }
-    // Custom: CenterSection is the full bar width and centres its content on the bar centre, not on
-    // the gap between the side sections. The gap is off-centre whenever the two sides differ in
-    // width, so clamping to sectionAvailablePrimarySize alone still overruns the narrower side.
-    // The real limit is twice the smaller half-gap, less what the centre siblings already take.
-    readonly property bool barSectionsResolved: !!(root.barCenterSection && root.barLeftSection && root.barRightSection)
-    readonly property real centerHalfGap: {
-        if (!root.barSectionsResolved)
-            return 0;
-        const centreX = root.barCenterSection.width / 2;
-        const leftEnd = root.barLeftSection.x + root.barLeftSection.width;
-        const rightStart = root.barRightSection.x;
-        return Math.max(0, Math.min(centreX - leftEnd, rightStart - centreX));
-    }
-    readonly property int maxNormalWidth: {
-        if (root.isVerticalOrientation)
-            return 99999;
-        // A resolved-but-zero half-gap means a side section already reaches past the bar centre.
-        // Fall back to the floor then, never to the wider sectionAvailablePrimarySize.
-        if (root.barSectionsResolved)
-            return Math.max(120, Math.floor(2 * root.centerHalfGap - root.centerSiblingsWidth));
-        if (root.sectionAvailablePrimarySize > 0)
-            return Math.max(120, Math.floor(root.sectionAvailablePrimarySize - root.centerSiblingsWidth));
-        return 99999;
-    }
+    readonly property int maxNormalWidth: 99999
     readonly property int maxCompactWidth: 288
-    // Custom: keep the title inside the clamped pill; the content Item does not clip
-    readonly property real maxTitleWidth: compactMode ? 280 : Math.max(40, root.maxNormalWidth - root.horizontalPadding * 2 - root.appIconSize - root.iconTitleSpacing)
+    readonly property int maxWidth: compactMode ? maxCompactWidth : maxNormalWidth
+    // Custom: the width cap is unlimited, so the bar's flex resolver is what keeps the pill out of
+    // the side sections — it shrinks the pill toward minimumPrimarySize before overflowing anything.
+    property real allottedPrimarySize: 0
+    property int availableWidth: allottedPrimarySize > 0 ? allottedPrimarySize : maxWidth
+    readonly property real naturalPrimarySize: isVerticalOrientation ? height : !hasWindowsOnCurrentWorkspace ? 0 : Theme.snap(Math.min(contentItem?.naturalWidth ?? 0, maxWidth - horizontalPadding * 2) + horizontalPadding * 2, dpr)
+    readonly property real minimumPrimarySize: isVerticalOrientation ? height : Math.min(naturalPrimarySize, Theme.snap((contentItem?.minimumWidth ?? 0) + horizontalPadding * 2, dpr))
+    readonly property real effectiveHorizontalWidth: Math.max(0, Math.min(maxWidth, availableWidth))
+    readonly property real effectiveHorizontalInnerWidth: Math.max(0, effectiveHorizontalWidth - horizontalPadding * 2)
     property Toplevel activeWindow: null
     property var activeDesktopEntry: null
     property bool isHovered: mouseArea.containsMouse
@@ -149,10 +105,7 @@ BasePill {
             return;
         popout.currentWindow = activeWindow;
         popout.processId = CompositorService.windowPid(activeWindow);
-        const globalPos = root.visualContent.mapToItem(null, 0, 0);
-        const barPosition = root.axis?.edge === "left" ? 2 : (root.axis?.edge === "right" ? 3 : (root.axis?.edge === "top" ? 0 : 1));
-        const position = SettingsData.getPopupTriggerPosition(globalPos, root.parentScreen, root.barThickness, root.visualWidth, root.barSpacing, barPosition, root.barConfig);
-        popout.setTriggerPosition(position.x, position.y, position.width, root.section, root.parentScreen, barPosition, root.barThickness, root.barSpacing, root.barConfig);
+        root.positionPopout(popout);
     }
 
     Connections {
@@ -214,20 +167,26 @@ BasePill {
         return CompositorService.windowOnActiveWorkspace(screenName, activeWindow, popoutVisible);
     }
 
-    width: hasWindowsOnCurrentWorkspace ? (isVerticalOrientation ? barThickness : visualWidth) : 0
+    width: hasWindowsOnCurrentWorkspace ? (isVerticalOrientation ? barThickness : (effectiveHorizontalInnerWidth > 0 ? visualWidth : 0)) : 0
     height: hasWindowsOnCurrentWorkspace ? (isVerticalOrientation ? visualHeight : barThickness) : 0
-    visible: hasWindowsOnCurrentWorkspace
+    visible: hasWindowsOnCurrentWorkspace && (isVerticalOrientation || effectiveHorizontalInnerWidth > 0)
 
     content: Component {
         Item {
+            id: contentRoot
+            readonly property bool iconShown: horizontalAppIcon.visible || horizontalFallbackIcon.visible
+            readonly property real iconExtent: iconShown ? root.appIconSize + contentRow.spacing : 0
+            // Custom: icon + title only — the app name and separator stay hidden
+            readonly property real naturalWidth: iconExtent + (titleText.visible ? titleText.implicitWidth : 0)
+            readonly property real minimumWidth: iconExtent + Math.min(48, titleText.visible ? titleText.implicitWidth : 0)
             implicitWidth: {
                 if (!root.hasWindowsOnCurrentWorkspace)
                     return 0;
                 if (root.isVerticalOrientation)
                     return root.widgetThickness - root.horizontalPadding * 2;
-                const baseWidth = contentRow.implicitWidth;
-                return compactMode ? Math.min(baseWidth, maxCompactWidth - root.horizontalPadding * 2) : Math.min(baseWidth, maxNormalWidth - root.horizontalPadding * 2);
+                return Math.min(contentRow.implicitWidth, root.effectiveHorizontalInnerWidth);
             }
+            width: root.isVerticalOrientation ? root.widgetThickness - root.horizontalPadding * 2 : Math.min(implicitWidth, root.effectiveHorizontalInnerWidth)
             implicitHeight: root.widgetThickness - root.horizontalPadding * 2
             clip: false
 
@@ -255,7 +214,7 @@ BasePill {
                 }
             }
 
-            DankIcon {
+            DIcon {
                 anchors.centerIn: parent
                 size: root.appIconSize
                 name: "sports_esports"
@@ -318,6 +277,7 @@ BasePill {
 
                 // Fallback icon for horizontal mode
                 Rectangle {
+                    id: horizontalFallbackIcon
                     width: root.appIconSize
                     height: root.appIconSize
                     radius: 4
@@ -389,7 +349,8 @@ BasePill {
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
                     maximumLineCount: 1
-                    width: Math.min(implicitWidth, root.maxTitleWidth)
+                    // Custom: keep the title inside the allotted pill; the content Item does not clip
+                    width: Math.min(implicitWidth, Math.max(0, root.effectiveHorizontalInnerWidth - contentRoot.iconExtent))
                     visible: text.length > 0
                 }
             }
@@ -438,6 +399,14 @@ BasePill {
                 tooltipLoader.item.hide();
             tooltipLoader.active = false;
 
+            // No context menu from inside the overflow popup; behave like a task switcher.
+            const owner = BarWidgetService.registrationForItem(root)?.context?.owner;
+            if (owner?.overflowAnchor) {
+                CompositorService.activateToplevel(activeWindow);
+                owner.overflowSurface?.close();
+                return;
+            }
+
             focusedWindowPopoutLoader.active = true;
             if (!focusedWindowPopoutLoader.item)
                 return;
@@ -450,7 +419,7 @@ BasePill {
     Loader {
         id: tooltipLoader
         active: false
-        sourceComponent: DankTooltip {}
+        sourceComponent: DTooltip {}
     }
 
     Loader {
@@ -464,63 +433,5 @@ BasePill {
     onPopoutVisibleChanged: {
         if (!popoutVisible)
             updateActiveWindow();
-    }
-
-    // Custom: the pill has to know where the neighbouring bar sections end, and DankBarContent
-    // exposes no such property to plugin widgets, so resolve them by walking our own parent chain.
-    // Read-only: nothing here mutates DMS-owned state.
-    function findBarAncestor(name) {
-        let node = root.parent;
-        while (node) {
-            if (node.objectName === name)
-                return node;
-            node = node.parent;
-        }
-        return null;
-    }
-
-    function findBarSibling(stack, name) {
-        if (!stack?.children)
-            return null;
-        for (let i = 0; i < stack.children.length; i++) {
-            if (stack.children[i].objectName === name)
-                return stack.children[i];
-        }
-        return null;
-    }
-
-    function findCenterWrapper() {
-        let node = root.parent;
-        while (node?.parent) {
-            if (node.parent.objectName === "centerSection")
-                return node;
-            node = node.parent;
-        }
-        return null;
-    }
-
-    // root.parent is still null when Component.onCompleted fires (WidgetHost parents the item
-    // after construction), so poll briefly until the sections are reachable.
-    Timer {
-        id: barSectionAttachTimer
-        interval: 250
-        repeat: true
-        running: true
-        property int attempts: 0
-        onTriggered: {
-            attempts++;
-            if (attempts > 40) {
-                running = false;
-                return;
-            }
-            const section = root.findBarAncestor("centerSection");
-            if (!section)
-                return;
-            root.barCenterSection = section;
-            root.barCenterWrapper = root.findCenterWrapper();
-            root.barLeftSection = root.findBarSibling(section.parent, "leftSection");
-            root.barRightSection = root.findBarSibling(section.parent, "rightSection");
-            running = false;
-        }
     }
 }
