@@ -4,13 +4,65 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-09-26
-**Base commit:** `09e7ea02` (lyrics: share one mpris controller via LyricsService, accept plain sources) — `upstream/master` tip
+**Last synced:** 2026-10-08
+**Base commit:** `f61a5d12` (lists: restore faded edges everywhere) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `b90bd221` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `~/.local/bin/dms` resolves to a `dms-shell-1.7-beta+date=2026-09-26_b90bd22` store path built from that HEAD. `git diff upstream/master HEAD -- quickshell/Modules/DankBar/Widgets/` is empty; `quickshell/Modules/Plugins/PluginComponent.qml` carries one fork-only line (`ccDetailFitsContent`, DDC). The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `cc5fcaa9` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `~/.local/bin/dms` resolves to a `dms-shell-1.7-beta+date=2026-10-08_93d6175` store path, and `93d6175` contains the upstream tip. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `b5415caa`)
+### Applied in this sync (since `09e7ea02`)
+
+190 upstream commits. Upstream moved the bar from `Modules/DankBar` to `Modules/DBar` and renamed
+its `Dank*` widgets to `D*` (`ccbf1d38`, `9ec48c4f`, `fd52e0af`), so every widget shows up as
+changed; diff the old path at the base against the new one.
+
+**First, a breakage fix.** The running build already carries the rename, which left four
+plugins referencing types that no longer exist (found by reading the build, not seen at runtime): `qs.Modules.DankBar` no longer exports `BarMetrics` or `BarPillSurface`
+(CustomSystemTrayBar, CustomMedia), and `DankContextMenu` / `DankIconButton` have no
+compatibility shim (CustomRunningApps, CustomMedia). The remaining `Dank*` names still load
+through shims that log a deprecation error per plugin. All 17 affected files now use the `D*`
+names, `import qs.DCommon.Widgets` next to `qs.Widgets`, and `qs.Modules.DBar[.Widgets]`.
+
+- **CustomFocusedApp** — `a8146d2c` "bar: shrink flexible widgets before moving anything into
+  overflow", *adapted*. Our own pill clamp (~100 lines walking the parent chain to measure the gap
+  between bar sections, plus a polling `Timer`) is gone. The pill declares
+  `naturalPrimarySize` / `minimumPrimarySize` and receives `allottedPrimarySize`, and the bar's
+  resolver shrinks it before anything collides. `maxNormalWidth` is back to a plain `99999`. The
+  natural/minimum widths count icon + title only, since our app name and separator are hidden.
+  Also from `e473c928`: `syncPopoutState()` uses `BasePill.positionPopout()`, and a click inside
+  the bar overflow popup activates the window instead of opening the details popout.
+- **CustomMedia** — `49d7d6b2` bar lyric line + track tooltip, `2a8368a8` cover art, `a8146d2c`
+  flex sizing, all *adapted*. Lyrics and cover art are `PluginService` toggles (`showLyrics`,
+  `showCoverArt`, default off), not the `mediaShowLyrics` / `mediaShowCoverArt` widget options.
+  The text slot's natural width is our `textWidth` (or the title's width in unlimited mode), and
+  it keeps that width while a lyric line shows. `hideIcon` now hides only the icon/visualizer
+  slot, in both orientations; it used to apply to the horizontal layout only.
+- **CustomNetworkMonitor** — `66e37ff8` hide when idle + compact mode, *adapted*. Both are
+  `PluginService` toggles (`hideWhenIdle`, `compactMode`) with a new settings page. Compact uses
+  our own `formatNetworkSpeedCompact` (`␣␣0K`, `␣<1K`, `␣12K`, `120M`, figure-space padded),
+  because `Common/Format.js` can't be imported from here. The icons take `Theme.widgetIconColor`.
+  `NumericText` is not used; our tabular-number `StyledText` stays.
+- **CustomRunningApps** — `windowModelKey` collapses to `CompositorService.toplevelKey`; the
+  group badge count uses `Theme.onPrimary` on its `Theme.primary` dot; translator context on the
+  scratchpad menu strings.
+- **CustomSystemTrayBar** — `e473c928`: `_openOverflowAt` goes through `positionPopout()`, and a
+  tray menu opened from inside the bar overflow popup is positioned by the overflow surface.
+  `OverflowLayout.expanderIcon()` is not taken — its relative import can't resolve from the
+  plugins directory, and our inline switch returns the same icons.
+- **CustomWorkspaceSwitcher** — the data layer moved onto upstream's `WorkspaceSwitcherModel`
+  (`qs.Widgets`), fed through our `opt()` so `optionDefaults` still applies (-165 lines). Plus
+  `585827e7` / `5972dd18` dots style, compact indicators and roundness, *adapted*: `indicatorStyle`
+  gains `dots`, and `indicatorCompact`, `indicatorRoundnessCustom` and `indicatorRoundness` are
+  new `PluginService` keys. Only the cross-axis ratios apply, since the main-axis sizing is ours,
+  so compact affects lines and dots but not pills or cards. Dots without app icons are true
+  circles with a fitted label. `flatOuterEdge` still wins over any roundness. `filledInk` is not
+  ported; our per-state text colours cover it.
+
+**Drive-by fix:** CustomMedia's horizontal `implicitWidth` has been `0` for every fixed text
+size (`mediaSize` 1–2) since the 2026-05-02 rebuild (`25f073f`), which dropped the horizontal
+branch of `currentContentWidth`. It now reads `mediaRow.implicitWidth` in all horizontal modes.
+
+### Applied in the 2026-09-26 sync (since `b5415caa`)
 
 115 upstream commits; four touch forked widgets, all four ported.
 
@@ -236,6 +288,7 @@ Changes:
 - App name text hidden (`visible: false`)
 - Separator dot hidden
 - Icon displayed alongside title only
+- Unlimited width; the bar's flex resolver shrinks the pill when sections would collide
 - Left-click opens upstream's `FocusedWindowContextMenu` popout (window details + PID), as in upstream since `a669253c`
 - Settings panel with:
   - "Strip App Name from Title" - Smart removal of app name, version numbers, instance markers, and brand words from titles
@@ -247,7 +300,8 @@ Configurable media widget with settings panel.
 Changes:
 - Configurable text width (none/small/medium/unlimited)
 - Reverse layout order option
-- Hide icon option
+- Hide icon option (hides the icon/visualizer slot)
+- Lyric line (with a track tooltip on hover) and cover art toggles, both off by default
 - Mouse wheel volume control (when player supports it)
   - Mouse wheel: 5% volume increments
   - Touchpad: smooth 1% increments with accumulator
@@ -262,6 +316,7 @@ Changes:
 - Shows `0 KB/s` or `<1 KB/s` for low values
 - Color-coded: download (Theme.info/blue), upload (Theme.error/red)
 - Padded numbers to 3 digits for stable layout
+- Settings panel: "Hide When Idle" (below 1 KB/s both ways) and "Compact Mode" (`12K` instead of `12 KB/s`)
 
 ## CustomRunningApps
 
@@ -270,7 +325,7 @@ Enhanced running apps taskbar.
 Changes:
 - Scroll wheel switches between windows
 - Middle-click closes window
-- Right-click context menu (`DankContextMenu`) with Minimize/Restore, scratchpad moves and Close
+- Right-click context menu (`DContextMenu`) with Minimize/Restore, scratchpad moves and Close
 - Grouped windows show badge with count
 - Click cycles through grouped windows
 - Hover tooltips active via `tooltipLoader` (an earlier revision had them commented out)
@@ -324,8 +379,9 @@ Changes:
   - Individual opacity sliders (0-100%) for each state
 - **Custom text/icon colors** - Auto-contrast or manual selection for each state
 - **Flat outer edge** - Option to remove rounded corners on the screen-edge side
-- **Indicator style** - `indicatorStyle` (`pills`/`lines`/`cards`, default `pills`) via
-  `PluginService`, in place of upstream's `workspaceIndicatorStyle` widget option
+- **Indicator style** - `indicatorStyle` (`pills`/`lines`/`cards`/`dots`, default `pills`) via
+  `PluginService`, in place of upstream's `workspaceIndicatorStyle` widget option; plus
+  `indicatorCompact` and a custom roundness (`indicatorRoundnessCustom` + `indicatorRoundness` 0–100)
 
 ## Screensaver
 

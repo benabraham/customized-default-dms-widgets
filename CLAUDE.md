@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Custom QML plugins for DankMaterialShell (a Quickshell-based desktop shell). These are modified copies of DMS built-in widgets with specific customizations applied.
 
 **Upstream:** https://github.com/AvengeMedia/DankMaterialShell
-**Original widgets path:** `quickshell/Modules/DankBar/Widgets/`
+**Original widgets path:** `quickshell/Modules/DBar/Widgets/` (`DankBar` until 2026-10-05)
 
 ## Development
 
@@ -76,9 +76,21 @@ binds `widgetData` onto any plugin item that declares `property var widgetData`.
 bar entries carry no option keys, so `widgetOption` falls back to the DMS defaults — where that
 default is wrong for us, the plugin keeps its own `optionDefaults` map.
 
+**Use the `D*` names, not `Dank*`.** Since 2026-10-05 upstream calls its widgets `DIcon`,
+`DRipple`, `DPopout`, `DContextMenu`, … and the bar module is `qs.Modules.DBar`. Shared widgets
+live in `qs.DCommon.Widgets`; `DPopout`/`DTooltip`/`DContextMenu` stay in `qs.Widgets`, so
+plugins import both. The old `Dank*` names in `qs.Widgets` are deprecation shims that log an
+error per plugin, and some (`DankContextMenu`, `DankIconButton`) are gone. `qs.Modules.DankBar`
+no longer exports `BarMetrics` or `BarPillSurface` at all.
+
+**Bar flex sizing.** A widget that declares `naturalPrimarySize` and `minimumPrimarySize` gets
+`allottedPrimarySize` bound by `SurfaceWidgetHost`, plugins included. The bar's resolver
+(`Modules/DBar/OverflowLayout.js`, always on) shrinks such widgets toward their minimum when
+sections collide, before moving anything to overflow. CustomFocusedApp and CustomMedia use it.
+
 **Data flow:**
 ```
-DankBar (parent) → Plugin Widget → Local state + Services → Reactive UI
+DBar (parent) → Plugin Widget → Local state + Services → Reactive UI
 ```
 
 ## Upstream Sync
