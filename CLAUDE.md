@@ -107,4 +107,7 @@ Key customizations to preserve are documented in README.md and `.claude/commands
 - **CustomSystemTrayBar** - Long-press drag-and-drop icon reordering, persisted to `SessionData.trayItemOrder` via `setTrayItemOrder()`. Icon size and spacing come from `PluginService` under the `"SortedSystemTray"` key; hide/show uses `SessionData.hideTrayId`/`showTrayId`. Upstream's auto-overflow / "Keep in Bar" is disabled by pinning `useAutomaticOverflow: false` — don't re-enable it, and don't delete the upstream code it makes dead.
 - **CustomWorkspaceSwitcher** - Individual app icons (no grouping — see the `// Custom:` markers), click-to-focus via `CompositorService.focusWindow`. Workspace data comes from `CompositorService`'s workspace API (`workspacesForScreen`, `currentWorkspaceKey`, `windowsOnWorkspace`, …), not from per-compositor branches.
 - **Screensaver** - Daemon plugin; multi-stage DDC brightness dimming for OLED burn-in protection (not a bar widget)
-- **dockerManager** - Independent plugin with own architecture; see `dockerManager/CLAUDE.md`
+- **dockerManager** - Third-party plugin, not ours: a git clone of
+  `LuckShiba/DmsDockerManager`, ignored by this repo. Never modify its files, deprecated
+  `Dank*` names included; report problems upstream. Updating means a fast-forward pull of the
+  clone. See `dockerManager/CLAUDE.md` for its architecture.
