@@ -131,6 +131,11 @@ BasePill {
         tooltipLoader.active = false;
     }
 
+    onIsMouseHoveredChanged: isMouseHovered ? showTrackTooltip() : hideTrackTooltip()
+    onLyricActiveChanged: {
+        if (!lyricActive)
+            hideTrackTooltip();
+    }
     onClicked: hideTrackTooltip()
 
     onWheel: function (wheelEvent) {
@@ -272,11 +277,6 @@ BasePill {
             implicitWidth: root.playerAvailable ? (root.isVerticalOrientation ? root.currentContentWidth : mediaRow.implicitWidth) : 0
             implicitHeight: root.playerAvailable ? root.currentContentHeight : 0
             opacity: root.playerAvailable ? 1 : 0
-
-            HoverHandler {
-                enabled: root.lyricActive
-                onHoveredChanged: hovered ? root.showTrackTooltip() : root.hideTrackTooltip()
-            }
 
             Behavior on opacity {
                 NumberAnimation {

@@ -4,13 +4,39 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-10-08
-**Base commit:** `f61a5d12` (lists: restore faded edges everywhere) — `upstream/master` tip
+**Last synced:** 2026-10-20
+**Base commit:** `3284acab` (matugen: neovim template reads the dms config dir) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `cc5fcaa9` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `~/.local/bin/dms` resolves to a `dms-shell-1.7-beta+date=2026-10-08_93d6175` store path, and `93d6175` contains the upstream tip. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `8960b38e` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `~/.local/bin/dms` resolves to a `dms-shell-2.0.0+date=2026-10-20_1d9a63d` store path, and `1d9a63d` contains the upstream tip. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `09e7ea02`)
+### Applied in this sync (since `f61a5d12`)
+
+180 upstream commits; seven touch forked widgets, all ported. Upstream rebranded to *dux*
+(`789a968c`), so the shell's own app id is now `dev.duxlabs.shell`.
+
+- **All icon widgets** — `789a968c`: the "is this the shell's own window" check is
+  `Paths.isDmsAppId()` (CustomFocusedApp, CustomRunningApps ×2, CustomWorkspaceSwitcher). The
+  hardcoded `org.quickshell` / `com.danklinux.dms` pair missed the new `dev.duxlabs.shell` id, so
+  the shell's icon lost its recolour layer.
+- **CustomMedia** — `8be08999` "bar: host edge click strips in the bar body": the track tooltip
+  follows `isMouseHovered` (which now includes the bar-edge strip) instead of a `HoverHandler` on
+  the content, and hides when the lyric line goes away.
+
+**Fix from before the sync (own commit):** CustomMedia's lyric line is
+`DBarWidgets.MediaLyricLine` through an aliased `qs.Modules.DBar.Widgets` import. The 2026-10-08
+port used a bare `MediaLyricLine`, which doesn't resolve from the plugins dir.
+- **CustomRunningApps** — `39b41fb8`: the fallback `innerPadding` in `barBoundsOffset` is `2`.
+- **CustomSystemTrayBar** — `8ff7ce2c` (island tray slot), ported by a clean three-way merge: key
+  pinning, env hiding, icon sources, sorting, reordering and the `dbus-send` fallback now call
+  `TrayMenuManager` (`qs.Common`), and the overflow popup grid and tray menu are upstream's
+  `TrayOverflowGrid` / `TrayMenuContent` (-450 lines). Keys keep the `id` / `id::n` format. The
+  menu's "Keep in Bar" branch still calls our `isAutoOverflowTrayItem()`, which stays `false`.
+- **CustomWorkspaceSwitcher** — `534913dc`: Shift+wheel counts as horizontal and passes through,
+  inlined because `WheelInput.js` is imported by a shell-relative path. The overview pill change
+  (`effectiveScreenName`) is already covered by `WorkspaceSwitcherModel.hiddenByOverview`.
+
+### Applied in the 2026-10-08 sync (since `09e7ea02`)
 
 190 upstream commits. Upstream moved the bar from `Modules/DankBar` to `Modules/DBar` and renamed
 its `Dank*` widgets to `D*` (`ccbf1d38`, `9ec48c4f`, `fd52e0af`), so every widget shows up as

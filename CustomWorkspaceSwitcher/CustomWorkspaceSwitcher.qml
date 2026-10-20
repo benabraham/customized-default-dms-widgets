@@ -129,7 +129,7 @@ Item {
             const key = w.aqueousKey || `${moddedId}_${i}`;
 
             if (!byApp[key]) {
-                const isQuickshell = keyBase === "org.quickshell" || keyBase === "com.danklinux.dms";
+                const isQuickshell = Paths.isDmsAppId(keyBase);
                 const isSteamApp = Paths.isSteamApp(moddedId);
                 const desktopEntry = DesktopEntries.heuristicLookup(moddedId);
                 const icon = Paths.getAppIcon(moddedId, desktopEntry);
@@ -457,7 +457,9 @@ Item {
         }
 
         onWheel: wheel => {
-            if (Math.abs(wheel.angleDelta.x) > Math.abs(wheel.angleDelta.y)) {
+            // Custom: inlines upstream's WheelInput.isHorizontal(), whose JS file is imported by a
+            // path relative to the shell's tree and so can't be reached from the plugins dir.
+            if ((wheel.modifiers & Qt.ShiftModifier) || Math.abs(wheel.angleDelta.x) > Math.abs(wheel.angleDelta.y)) {
                 wheel.accepted = false;
                 return;
             }

@@ -204,7 +204,7 @@ BasePill {
                 smooth: true
                 mipmap: true
                 asynchronous: true
-                layer.enabled: activeWindow && (activeWindow.appId === "org.quickshell" || activeWindow.appId === "com.danklinux.dms")
+                layer.enabled: activeWindow && Paths.isDmsAppId(activeWindow.appId)
                 layer.smooth: true
                 layer.mipmap: true
                 layer.effect: MultiEffect {
