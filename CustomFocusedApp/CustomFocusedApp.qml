@@ -177,8 +177,8 @@ BasePill {
             readonly property bool iconShown: horizontalAppIcon.visible || horizontalFallbackIcon.visible
             readonly property real iconExtent: iconShown ? root.appIconSize + contentRow.spacing : 0
             // Custom: icon + title only — the app name and separator stay hidden
-            readonly property real naturalWidth: iconExtent + (titleText.visible ? titleText.implicitWidth : 0)
-            readonly property real minimumWidth: iconExtent + Math.min(48, titleText.visible ? titleText.implicitWidth : 0)
+            readonly property real naturalWidth: iconExtent + (titleText.visible ? titleText.naturalWidth : 0)
+            readonly property real minimumWidth: iconExtent + Math.min(48, titleText.visible ? titleText.naturalWidth : 0)
             implicitWidth: {
                 if (!root.hasWindowsOnCurrentWorkspace)
                     return 0;
@@ -349,9 +349,24 @@ BasePill {
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
                     maximumLineCount: 1
+                    // Custom: natural width from a hidden, unconstrained copy, not implicitWidth. An
+                    // elided Text with a bound width lays out its implicit size lazily, so reading
+                    // implicitWidth inside its own width binding re-entered it on every title change
+                    // (a binding loop). Not a TextMetrics either: its unhinted measure can come out
+                    // narrower than NativeRendering draws, which still elided titles. Rounded up to a
+                    // device pixel: the bar snaps the pill to whole pixels, rounding a fraction under
+                    // .5 down, which left the title a fraction short and elided it.
+                    readonly property real naturalWidth: Math.ceil(titleMeasure.implicitWidth * root.dpr) / root.dpr
                     // Custom: keep the title inside the allotted pill; the content Item does not clip
-                    width: Math.min(implicitWidth, Math.max(0, root.effectiveHorizontalInnerWidth - contentRoot.iconExtent))
+                    width: Math.min(naturalWidth, Math.max(0, root.effectiveHorizontalInnerWidth - contentRoot.iconExtent))
                     visible: text.length > 0
+
+                    StyledText {
+                        id: titleMeasure
+                        visible: false
+                        font: titleText.font
+                        text: titleText.text
+                    }
                 }
             }
         }
