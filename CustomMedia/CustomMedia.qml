@@ -3,6 +3,7 @@ import Quickshell.Services.Mpris
 import Quickshell.Widgets
 import qs.Common
 import qs.Modules.DBar
+import qs.Modules.DBar.Widgets as DBarWidgets
 import qs.Modules.Plugins
 import qs.Services
 import qs.DCommon.Widgets
@@ -422,7 +423,7 @@ BasePill {
                             animateTextChange: true
                         }
 
-                        MediaLyricLine {
+                        DBarWidgets.MediaLyricLine {
                             width: contentRoot.measuredTextWidth
                             height: parent.height
                             visible: root.lyricActive
