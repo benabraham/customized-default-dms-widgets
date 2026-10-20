@@ -25,7 +25,9 @@ Wrapping `dms restart` itself in `setsid nohup … & disown` does **not** work: 
 running daemon (`SIGUSR1`) and the shell still dies with no respawn (seen 2026-09-26). If a shell
 is already running, stop it first (`pkill -f 'dms run -d'`), then use the `dms run -d` line above.
 That log only carries the Go daemon's lines; `quickshell`'s stderr goes to a pipe the daemon owns,
-so QML warnings (binding loops included) are not readable this way.
+so QML warnings (binding loops included) are not readable this way. Quickshell keeps its own
+plain-text log of them instead, per instance: the newest
+`/run/user/$UID/quickshell/by-id/*/log.log` (`ls -t` it) belongs to the running shell.
 
 **Checking QML syntax without a restart:** `qmlformat <file> >/dev/null` parses the file and fails
 loudly on syntax errors. `qmllint` also works but floods the output with unresolved-import warnings,
