@@ -352,7 +352,9 @@ BasePill {
         return result;
     }
 
-    readonly property real contentSize: layoutLoader.item ? (isVerticalOrientation ? layoutLoader.item.implicitHeight : layoutLoader.item.implicitWidth) : 0
+    // layoutLoader lives inside the content Component, out of root's id scope; read it through
+    // BarPill's contentItem, whose implicit size is the loaded layout's.
+    readonly property real contentSize: contentItem ? (isVerticalOrientation ? contentItem.implicitHeight : contentItem.implicitWidth) : 0
     readonly property real calculatedSize: contentSize + horizontalPadding * 2
 
     visible: windowCount > 0
@@ -365,8 +367,9 @@ BasePill {
     function requestTitleUpdate(stableId, rawTitle) {
         const entry = _titleCache[stableId]
         if (!entry) {
+            // No trigger bump: a delegate without an entry already shows rawTitle, and bumping here
+            // re-enters windowTitle while it is reading rawTitle (a binding loop).
             _titleCache[stableId] = { debounced: rawTitle, pending: rawTitle }
-            _titleCacheTrigger++
             return
         }
         if (entry.pending === rawTitle)
@@ -968,15 +971,12 @@ BasePill {
                         TextMetrics {
                             id: textMetrics
                             font: hiddenText.font
+                            text: suffixText
                         }
 
-                        // Suffix width for dash-split calculation
-                        readonly property real suffixWidth: {
-                            if (!hasDashPattern)
-                                return 0;
-                            textMetrics.text = suffixText;
-                            return textMetrics.width;
-                        }
+                        // Suffix width for dash-split calculation (bound, not assigned inside the
+                        // binding, which re-entered suffixWidth through textMetrics.width)
+                        readonly property real suffixWidth: hasDashPattern ? textMetrics.width : 0
 
                         // Only split if there's room for prefix
                         readonly property bool useDashSplit: hasDashPattern && effectiveTextWidth >= suffixWidth * 1.5
