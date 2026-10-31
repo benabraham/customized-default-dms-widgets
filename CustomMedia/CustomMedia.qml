@@ -55,7 +55,7 @@ BasePill {
     }
 
     property real allottedPrimarySize: 0
-    readonly property real naturalPrimarySize: isVerticalOrientation ? height : !playerAvailable ? 0 : Theme.snap((contentItem?.naturalContentWidth ?? 0) + horizontalPadding * 2, dpr)
+    readonly property real naturalPrimarySize: isVerticalOrientation ? height : !playerAvailable ? 0 : Theme.pxCeil((contentItem?.naturalContentWidth ?? 0) + horizontalPadding * 2, dpr)
     readonly property real minimumPrimarySize: isVerticalOrientation ? height : !playerAvailable ? 0 : Theme.snap((contentItem?.fixedContentWidth ?? 0) + horizontalPadding * 2, dpr)
     readonly property bool lyricsEnabled: showLyrics && LyricsService.allowed
     readonly property bool coverArtEnabled: showCoverArt
@@ -74,7 +74,12 @@ BasePill {
         if (!controller.enabled || !controller.synced)
             return false;
         const parts = controller.lines[controller.activeIndex]?.parts ?? [];
-        return parts.some(part => part.x.trim() !== "");
+        return parts.some(part => lyricHasWords(part.x));
+    }
+    // Custom: inlines upstream's LyricLayout.hasWords(), whose JS file is imported by a relative
+    // path that does not resolve from the plugins directory
+    function lyricHasWords(text) {
+        return String(text ?? "").replace(/\s|[♩♪♫♬.…·*~()\[\]\-–—]|🎵|🎶|🎼|\uD834[\uDD00-\uDDFF]/g, "") !== "";
     }
 
     readonly property int textWidth: {
@@ -244,7 +249,13 @@ BasePill {
             height: parent.height
             buttonSize: parent.width
             iconSize: 14 * root.contentScale
-            radius: pressed ? Theme.cornerRadiusXS : (checked ? Theme.cornerRadiusFull : Theme.cornerRadiusS)
+            radius: {
+                if (!Theme.shapeMorph)
+                    return Theme.cornerRadiusS;
+                if (pressed)
+                    return Theme.cornerRadiusXS;
+                return checked ? Theme.cornerRadiusFull : Theme.cornerRadiusS;
+            }
             variant: "filled"
             round: false
             checkable: true
@@ -431,6 +442,7 @@ BasePill {
                             color: root.contentColor
                             font.pixelSize: mediaText.font.pixelSize
                             live: root.surfaceLive
+                            sweep: SettingsData.widgetOption("music", root.widgetData, "mediaSmoothLyrics")
                         }
 
                         MouseArea {

@@ -4,13 +4,48 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-10-20
-**Base commit:** `3284acab` (matugen: neovim template reads the dms config dir) — `upstream/master` tip
+**Last synced:** 2026-10-31
+**Base commit:** `c5cb0beb` (bar widgets: round natural pill width up so text is not elided by a subpixel) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `8960b38e` = `upstream/master` + fork DDC commits; `upstream/master` verified as an ancestor). **The running build is current:** `~/.local/bin/dms` resolves to a `dms-shell-2.0.0+date=2026-10-20_1d9a63d` store path, and `1d9a63d` contains the upstream tip. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `6ddf550f` = `upstream/master~1` + 13 fork DDC commits). **The running build is one commit behind:** `~/.local/bin/dms` resolves to a `dms-shell-2.0.0+date=2026-10-31_6ddf550` store path, which lacks only the tip `c5cb0beb`; every API the ported changes call (`Theme.pxCeil`, `SettingsData.barInnerPaddingDefault`, `BarMetrics.menuPadding`, `IconThemeService.ready`, `MediaLyricLine.sweep`) is already in it. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `f61a5d12`)
+### Applied in this sync (since `3284acab`)
+
+187 upstream commits; eleven touch forked widgets or the shared `WorkspaceSwitcherModel`.
+
+**A breakage fix first.** `4f0e2c6f` makes `WorkspaceSwitcherModel` wrap every compositor's
+workspaces in slot objects, not just Hyprland's. CustomWorkspaceSwitcher's drag-to-reorder read
+`.id` / `.idx` straight off those slots, so reordering niri workspaces silently did nothing. It
+now unwraps both ends with `recordOf()` (`a88be894`).
+
+- **CustomFocusedApp, CustomMedia** — `c5cb0beb`: `naturalPrimarySize` rounds up with
+  `Theme.pxCeil` instead of `Theme.snap`, so a subpixel no longer elides text that fits.
+- **CustomMedia** — `3ba2fa5a`: the media button keeps a fixed radius under the classic style
+  (`Theme.shapeMorph`), the lyric line takes the `mediaSmoothLyrics` widget option as `sweep`
+  (default off), and filler-only lyric lines (`♪`, `…`, `—`) count as empty. That last check is
+  our inlined `lyricHasWords()`, since `LyricLayout.js` is imported by a shell-relative path.
+- **CustomRunningApps** — `76025038`: the fallback `innerPadding` is
+  `SettingsData.barInnerPaddingDefault` instead of `2`.
+- **CustomSystemTrayBar** — `a1c8db25`: the overflow grid gets the popout through
+  `overflowPopoutRef` (a same-named binding resolved to itself, so overflow item menus did not
+  open at the icon); `76025038`: tray menu padding and row height come from `BarMetrics`.
+- **CustomWorkspaceSwitcher** — `b2e1817a` / `a88be894`: app icons wait for
+  `IconThemeService.ready` and reload when it flips, icon lists compare by structure so
+  unchanged icons keep their delegates, and switching workspace reloads icons in the same frame
+  instead of after the 50 ms timer, so the pill resizes with its active icons.
+
+**Not taken:**
+- **CustomNetworkMonitor** — `e4c4fe44` drops tabular figures; ours keeps them on purpose.
+- **CustomMedia `AudioVisualization.qml`** — `a3c4d0ab` gates the cava `Ref` on availability; our
+  older fork already does, since `MediaIcon` hides it (and so drops `live`) when the visualizer
+  is off.
+- **CustomWorkspaceSwitcher** — `a88be894`'s visual rework (count badge, label sizing, ink colors,
+  `workspaceUnfocusedAppsFullOpacity`, overview pill sizing, segmented joins) and `112d0590`'s
+  `HoverHandler`: our colors, sizes and ungrouped icons replace all of it, and our pill has no
+  child hover target that would steal `containsMouse`.
+
+### Applied in the 2026-10-20 sync (since `f61a5d12`)
 
 180 upstream commits; seven touch forked widgets, all ported. Upstream rebranded to *dux*
 (`789a968c`), so the shell's own app id is now `dev.duxlabs.shell`.

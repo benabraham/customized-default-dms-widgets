@@ -116,7 +116,7 @@ Item {
 
     function getWorkspaceIcons(ws) {
         _desktopEntriesUpdateTrigger;
-        if (!root.opt("showWorkspaceApps") || !ws || !root.useNativeWorkspaces || ws.placeholder) {
+        if (!root.opt("showWorkspaceApps") || !ws || !root.useNativeWorkspaces || ws.placeholder || !IconThemeService.ready) {
             return [];
         }
 
@@ -811,8 +811,8 @@ Item {
                         const didReorder = wasDragging && root.dragTargetIndex >= 0 && root.dragTargetIndex !== root.dragSourceIndex;
 
                         if (didReorder) {
-                            const sourceWs = root.workspaceList[root.dragSourceIndex];
-                            const targetWs = root.workspaceList[root.dragTargetIndex];
+                            const sourceWs = root.recordOf(root.workspaceList[root.dragSourceIndex]);
+                            const targetWs = root.recordOf(root.workspaceList[root.dragTargetIndex]);
 
                             if (sourceWs && targetWs && sourceWs.id !== undefined && targetWs.idx !== undefined) {
                                 root.suppressShiftAnimation = true;
@@ -845,19 +845,21 @@ Item {
                 Timer {
                     id: dataUpdateTimer
                     interval: 50
-                    onTriggered: {
-                        if (isPlaceholder) {
-                            delegateRoot.loadedWorkspaceData = null;
-                            delegateRoot.loadedIcons = [];
-                            delegateRoot.loadedIsUrgent = false;
-                            return;
-                        }
+                    onTriggered: delegateRoot.loadData()
+                }
 
-                        const wsData = delegateRoot.record;
-                        delegateRoot.loadedWorkspaceData = wsData;
-                        delegateRoot.loadedIsUrgent = CompositorService.loadWorkspaceUrgent(wsData);
-                        delegateRoot.loadedIcons = root.opt("showWorkspaceApps") ? root.getWorkspaceIcons(wsData) : [];
+                function loadData() {
+                    if (isPlaceholder) {
+                        delegateRoot.loadedWorkspaceData = null;
+                        delegateRoot.loadedIcons = [];
+                        delegateRoot.loadedIsUrgent = false;
+                        return;
                     }
+
+                    const wsData = delegateRoot.record;
+                    delegateRoot.loadedWorkspaceData = wsData;
+                    delegateRoot.loadedIsUrgent = CompositorService.loadWorkspaceUrgent(wsData);
+                    delegateRoot.loadedIcons = root.opt("showWorkspaceApps") ? root.getWorkspaceIcons(wsData) : [];
                 }
 
                 function updateAllData() {
@@ -1112,6 +1114,7 @@ Item {
                                 Repeater {
                                     model: ScriptModel {
                                         values: loadedIcons.slice(0, root.opt("maxWorkspaceIcons"))
+                                        comparisonMode: ObjectComparison.Structure
                                     }
                                     delegate: Item {
                                         // Custom: use wsAppIconActive/wsAppIconNormal sizes
@@ -1278,6 +1281,7 @@ Item {
                                         Repeater {
                                             model: ScriptModel {
                                                 values: loadedIcons.slice(0, root.opt("maxWorkspaceIcons"))
+                                                comparisonMode: ObjectComparison.Structure
                                             }
                                             delegate: Item {
                                                 readonly property var windowId: modelData.windowId
@@ -1408,7 +1412,13 @@ Item {
                     }
                 }
                 readonly property var rootCurrentWorkspace: root.currentWorkspace
-                onRootCurrentWorkspaceChanged: updateAllData()
+                // isActive flips at once, so the icons that size the pill must follow in the same frame
+                onRootCurrentWorkspaceChanged: {
+                    dataUpdateTimer.stop();
+                    loadData();
+                }
+                readonly property bool iconIndexReady: IconThemeService.ready
+                onIconIndexReadyChanged: updateAllData()
                 Connections {
                     target: SettingsData
                     function onBarConfigsChanged() {
