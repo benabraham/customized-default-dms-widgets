@@ -594,7 +594,6 @@ Item {
                     animated: delegateRoot.colorAnimationReady
                 }
 
-                property var loadedWorkspaceData: null
                 property bool loadedIsUrgent: false
                 property bool isUrgent: root.useNativeWorkspaces ? CompositorService.workspaceUrgent(record, loadedIsUrgent) : (modelData?.urgent ?? false)
                 readonly property var loadedIconData: {
@@ -850,16 +849,13 @@ Item {
 
                 function loadData() {
                     if (isPlaceholder) {
-                        delegateRoot.loadedWorkspaceData = null;
                         delegateRoot.loadedIcons = [];
                         delegateRoot.loadedIsUrgent = false;
                         return;
                     }
 
-                    const wsData = delegateRoot.record;
-                    delegateRoot.loadedWorkspaceData = wsData;
-                    delegateRoot.loadedIsUrgent = CompositorService.loadWorkspaceUrgent(wsData);
-                    delegateRoot.loadedIcons = root.opt("showWorkspaceApps") ? root.getWorkspaceIcons(wsData) : [];
+                    delegateRoot.loadedIsUrgent = CompositorService.loadWorkspaceUrgent(delegateRoot.record);
+                    delegateRoot.loadedIcons = root.opt("showWorkspaceApps") ? root.getWorkspaceIcons(delegateRoot.record) : [];
                 }
 
                 function updateAllData() {
