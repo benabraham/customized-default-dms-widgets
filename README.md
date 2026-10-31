@@ -17,7 +17,9 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 **A breakage fix first.** `4f0e2c6f` makes `WorkspaceSwitcherModel` wrap every compositor's
 workspaces in slot objects, not just Hyprland's. CustomWorkspaceSwitcher's drag-to-reorder read
 `.id` / `.idx` straight off those slots, so reordering niri workspaces silently did nothing. It
-now unwraps both ends with `recordOf()` (`a88be894`).
+now unwraps both ends with `recordOf()` (`a88be894`). The same change emptied the workspace
+number and name labels, which read `modelData` instead of the unwrapped `record` (upstream
+already reads `record`).
 
 - **CustomFocusedApp, CustomMedia** — `c5cb0beb`: `naturalPrimarySize` rounds up with
   `Theme.pxCeil` instead of `Theme.snap`, so a subpixel no longer elides text that fits.

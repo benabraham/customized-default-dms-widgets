@@ -1103,7 +1103,7 @@ Item {
                                     StyledText {
                                         id: wsIndexText
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: loadedHasIcon ? (modelData?.name ?? "") : root.getWorkspaceIndex(modelData, index)
+                                        text: loadedHasIcon ? (record?.name ?? "") : root.getWorkspaceIndex(record, index)
                                         // Custom: per-state text colors
                                         color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                         font.pixelSize: labelSize
@@ -1224,7 +1224,7 @@ Item {
 
                                     StyledText {
                                         visible: root.opt("showWorkspaceIndex") || root.opt("showWorkspaceName")
-                                        text: root.getWorkspaceIndex(modelData, index)
+                                        text: root.getWorkspaceIndex(record, index)
                                         // Custom: per-state text colors
                                         color: isActive ? activeTextColor : isUrgent ? urgentTextColor : isPlaceholder ? Theme.surfaceTextAlpha : isOccupied ? occupiedTextColor : unfocusedTextColor
                                         font.pixelSize: root.wsNameIconSize
