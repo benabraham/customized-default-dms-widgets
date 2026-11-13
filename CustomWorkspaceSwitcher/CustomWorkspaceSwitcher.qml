@@ -91,6 +91,7 @@ Item {
         screenName: root.screenName
         screen: root.parentScreen
         followFocus: root.opt("workspaceFollowFocus")
+        moveToOutput: root.opt("workspaceMoveToOutput")
         occupiedOnly: root.opt("showOccupiedWorkspacesOnly")
         showAllTags: root.opt("dwlShowAllTags")
         showPadding: root.opt("showWorkspacePadding")
@@ -99,7 +100,6 @@ Item {
         reverseScrolling: root.opt("reverseScrolling")
     }
 
-    readonly property bool useAqueous: workspaces.useAqueous
     readonly property bool useExtWorkspace: workspaces.useExtWorkspace
     readonly property bool useNativeWorkspaces: workspaces.useNativeWorkspaces
     readonly property string effectiveScreenName: workspaces.effectiveScreenName
@@ -126,7 +126,7 @@ Item {
             const keyBase = (w.app_id || w.appId || w.class || w.windowClass || "unknown");
             const moddedId = Paths.moddedAppId(keyBase);
             // Custom: never group icons - each window gets its own entry
-            const key = w.aqueousKey || `${moddedId}_${i}`;
+            const key = `${moddedId}_${i}`;
 
             if (!byApp[key]) {
                 const isQuickshell = Paths.isDmsAppId(keyBase);
@@ -142,7 +142,6 @@ Item {
                     "active": !!(w.activated || w.is_focused),
                     "count": 1,
                     "windowId": w.address || w.id,
-                    "windowSession": useAqueous ? w.aqueousSession : "",
                     "fallbackText": appName || ""
                 };
             } else {
@@ -616,9 +615,6 @@ Item {
                 readonly property int stableIconCount: {
                     if (!root.opt("showWorkspaceApps") || isPlaceholder)
                         return 0;
-
-                    if (root.useAqueous)
-                        return loadedIcons.length;
 
                     if (!root.useNativeWorkspaces)
                         return 0;
@@ -1110,7 +1106,6 @@ Item {
                                 Repeater {
                                     model: ScriptModel {
                                         values: loadedIcons.slice(0, root.opt("maxWorkspaceIcons"))
-                                        comparisonMode: ObjectComparison.Structure
                                     }
                                     delegate: Item {
                                         // Custom: use wsAppIconActive/wsAppIconNormal sizes
@@ -1277,7 +1272,6 @@ Item {
                                         Repeater {
                                             model: ScriptModel {
                                                 values: loadedIcons.slice(0, root.opt("maxWorkspaceIcons"))
-                                                comparisonMode: ObjectComparison.Structure
                                             }
                                             delegate: Item {
                                                 readonly property var windowId: modelData.windowId

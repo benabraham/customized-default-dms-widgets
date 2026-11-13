@@ -733,6 +733,10 @@ BasePill {
     property real touchpadThreshold: 500
 
     onWheel: function (wheelEvent) {
+        // Custom: inlines upstream's WheelInput.isHorizontal(), whose JS file is imported by a
+        // path relative to the shell's tree and so can't be reached from the plugins dir.
+        if ((wheelEvent.modifiers & Qt.ShiftModifier) || Math.abs(wheelEvent.angleDelta.x) > Math.abs(wheelEvent.angleDelta.y))
+            return;
         wheelEvent.accepted = true;
         const deltaY = wheelEvent.angleDelta.y;
         const isMouseWheel = Math.abs(deltaY) >= 120 && (Math.abs(deltaY) % 120) === 0;
@@ -1813,6 +1817,7 @@ BasePill {
         id: windowContextMenu
 
         property var currentWindow: null
+        readonly property string scratchpadName: CompositorService.windowScratchpadName(currentWindow)
 
         layerNamespace: "dms:custom-running-apps-context-menu"
         menuItems: {
@@ -1832,7 +1837,7 @@ BasePill {
                             targetWindow.minimized = true;
                     }
                 });
-            const scratchpad = CompositorService.windowScratchpadName(currentWindow);
+            const scratchpad = scratchpadName;
             if (scratchpad)
                 items.push({
                     type: "item",

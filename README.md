@@ -4,13 +4,46 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-10-31
-**Base commit:** `c5cb0beb` (bar widgets: round natural pill width up so text is not elided by a subpixel) — `upstream/master` tip
+**Last synced:** 2026-11-13
+**Base commit:** `d5a82f71` (controlcenter: show tile edit chrome only on hover) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `6ddf550f` = `upstream/master~1` + 13 fork DDC commits). **The running build is one commit behind:** `~/.local/bin/dms` resolves to a `dms-shell-2.0.0+date=2026-10-31_6ddf550` store path, which lacks only the tip `c5cb0beb`; every API the ported changes call (`Theme.pxCeil`, `SettingsData.barInnerPaddingDefault`, `BarMetrics.menuPadding`, `IconThemeService.ready`, `MediaLyricLine.sweep`) is already in it. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `433438fa` = `upstream/master` tip `d5a82f71` + 13 fork DDC commits). The running shell is `qs -p ~/code/_forks/DankMaterialShell/quickshell`, i.e. that working tree, launched through `~/.local/bin/dms` (`dms-shell-2.2-beta+date=2026-11-13_433438f`), so every upstream API is in it. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `3284acab`)
+### Applied in this sync (since `c5cb0beb`)
+
+191 upstream commits; seven touch forked widgets. None touch Media, NetworkMonitor,
+SystemTrayBar or `AudioVisualization.qml`.
+
+**Two load warnings first.** The running shell logged `Unable to assign [undefined] to bool` for
+both of these on startup:
+
+- **CustomWorkspaceSwitcher** — `c1c789a1` drops aqueous support, and with it
+  `WorkspaceSwitcherModel.useAqueous`. Our `useAqueous` alias and every aqueous branch
+  (`aqueousKey`, `windowSession`, the `stableIconCount` shortcut) are gone, as upstream.
+- **CustomFocusedApp** — `b95f6143` replaces the `focusedWindowCompactMode` option with
+  `focusedWindowShowAppName` / `focusedWindowShowWindowTitle` (config v43 migration). Compact mode
+  only hid our icon and capped the width; the app name it toggled upstream never shows here, so
+  `compactMode` and `maxCompactWidth` are removed rather than remapped. Ported from the same
+  commit: the `textSize` property for all font sizes, `availableWidth` as `real`, and the title's
+  minimum width as `textSize * 4` instead of a fixed `48`. Upstream's new font-scaled `maxWidth`
+  doesn't apply, since ours is unlimited.
+
+**Also ported:**
+
+- **CustomWorkspaceSwitcher** — `ceb9f8ce` drops `comparisonMode` from both icon `ScriptModel`s
+  (Quickshell 0.3 compatibility); `65e65ac8` passes `workspaceMoveToOutput` to the model
+  (Hyprland-only, default off).
+- **CustomRunningApps** — `6adfd9e5` lets horizontal scroll pass through instead of switching
+  windows, with `WheelInput.isHorizontal()` inlined as in CustomWorkspaceSwitcher; `88e338f3`
+  moves the context menu's scratchpad lookup into a `scratchpadName` property.
+
+**Deferred:** `423c473a` "workspace: initial expressive style" — a new fifth indicator style with a
+travelling active shape (`WorkspaceActiveShape.qml`), shaped indicators and trailing window dots.
+It is a new feature, not a fix, marked "initial" upstream, and its colors go through upstream's
+`workspace*ColorMode` system, which CustomWorkspaceSwitcher replaces with its own.
+
+### Applied in the 2026-10-31 sync (since `3284acab`)
 
 187 upstream commits; eleven touch forked widgets or the shared `WorkspaceSwitcherModel`.
 

@@ -14,14 +14,14 @@ BasePill {
     id: root
 
     property var widgetData: null
-    property bool compactMode: SettingsData.widgetOption("focusedWindow", widgetData, "focusedWindowCompactMode")
+    readonly property real textSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+    // Custom: upstream's compact mode (now its app-name toggle) is gone; the app name never shows here
     readonly property int maxNormalWidth: 99999
-    readonly property int maxCompactWidth: 288
-    readonly property int maxWidth: compactMode ? maxCompactWidth : maxNormalWidth
+    readonly property int maxWidth: maxNormalWidth
     // Custom: the width cap is unlimited, so the bar's flex resolver is what keeps the pill out of
     // the side sections — it shrinks the pill toward minimumPrimarySize before overflowing anything.
     property real allottedPrimarySize: 0
-    property int availableWidth: allottedPrimarySize > 0 ? allottedPrimarySize : maxWidth
+    property real availableWidth: allottedPrimarySize > 0 ? allottedPrimarySize : maxWidth
     readonly property real naturalPrimarySize: isVerticalOrientation ? height : !hasWindowsOnCurrentWorkspace ? 0 : Theme.pxCeil(Math.min(contentItem?.naturalWidth ?? 0, maxWidth - horizontalPadding * 2) + horizontalPadding * 2, dpr)
     readonly property real minimumPrimarySize: isVerticalOrientation ? height : Math.min(naturalPrimarySize, Theme.snap((contentItem?.minimumWidth ?? 0) + horizontalPadding * 2, dpr))
     readonly property real effectiveHorizontalWidth: Math.max(0, Math.min(maxWidth, availableWidth))
@@ -178,7 +178,7 @@ BasePill {
             readonly property real iconExtent: iconShown ? root.appIconSize + contentRow.spacing : 0
             // Custom: icon + title only — the app name and separator stay hidden
             readonly property real naturalWidth: iconExtent + (titleText.visible ? titleText.naturalWidth : 0)
-            readonly property real minimumWidth: iconExtent + Math.min(48, titleText.visible ? titleText.naturalWidth : 0)
+            readonly property real minimumWidth: iconExtent + Math.min(root.textSize * 4, titleText.visible ? titleText.naturalWidth : 0)
             implicitWidth: {
                 if (!root.hasWindowsOnCurrentWorkspace)
                     return 0;
@@ -267,7 +267,7 @@ BasePill {
                     id: horizontalAppIcon
                     width: root.appIconSize
                     height: root.appIconSize
-                    visible: !compactMode && activeWindow && status === Image.Ready
+                    visible: activeWindow && status === Image.Ready
                     source: activeWindow && activeWindow.appId ? Paths.getAppIcon(activeWindow.appId, activeDesktopEntry) : ""
                     smooth: true
                     mipmap: true
@@ -284,7 +284,7 @@ BasePill {
                     color: Theme.secondary
                     anchors.verticalCenter: parent.verticalCenter
                     visible: {
-                        if (compactMode || !activeWindow || !activeWindow.appId)
+                        if (!activeWindow || !activeWindow.appId)
                             return false;
                         if (horizontalAppIcon.status === Image.Ready)
                             return false;
@@ -313,18 +313,18 @@ BasePill {
                             return "";
                         return Paths.getAppName(activeWindow.appId, activeDesktopEntry);
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                    font.pixelSize: root.textSize
                     color: root.contentColor
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
                     maximumLineCount: 1
-                    width: Math.min(implicitWidth, compactMode ? 80 : 99999)
+                    width: Math.min(implicitWidth, 99999)
                     visible: false  // Patched: use icon instead
                 }
 
                 StyledText {
                     text: "•"
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                    font.pixelSize: root.textSize
                     color: Theme.outlineButton
                     anchors.verticalCenter: parent.verticalCenter
                     visible: false  // Patched: no dot with icon
@@ -335,16 +335,11 @@ BasePill {
                     text: {
                         const title = activeWindow && activeWindow.title ? activeWindow.title : "";
                         const appName = appText.text;
-                        if (compactMode && (!title || title === appName))
-                            return title || appName;
                         if (!root.stripAppName)
                             return title;
-                        const stripped = root.stripAppNameFromTitle(title, appName);
-                        if (compactMode && !stripped)
-                            return appName;
-                        return stripped;
+                        return root.stripAppNameFromTitle(title, appName);
                     }
-                    font.pixelSize: Theme.barTextSize(root.barThickness, root.barConfig?.fontScale, root.barConfig?.maximizeWidgetText)
+                    font.pixelSize: root.textSize
                     color: root.contentColor
                     anchors.verticalCenter: parent.verticalCenter
                     elide: Text.ElideRight
