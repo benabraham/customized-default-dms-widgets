@@ -1133,7 +1133,7 @@ Item {
                                             layer.effect: MultiEffect {
                                                 saturation: 0
                                                 colorization: 1
-                                                colorizationColor: appHighlightActive ? focusedBorderColor : (isActive ? quickshellIconActiveColor : quickshellIconInactiveColor)
+                                                colorizationColor: isActive ? quickshellIconActiveColor : quickshellIconInactiveColor
                                             }
                                         }
 
