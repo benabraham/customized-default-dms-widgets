@@ -827,11 +827,11 @@ BasePill {
                     delegate: Item {
                         id: delegateItem
 
-                        property bool isGrouped: root._groupByApp
-                        property var groupData: isGrouped ? modelData : null
-                        property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
+                        readonly property var groupWindows: modelData?.windows ?? null
+                        readonly property bool isGrouped: groupWindows !== null
+                        property var toplevelData: isGrouped ? (groupWindows[0]?.toplevel ?? null) : modelData
                         property bool isFocused: isGrouped ? (root.focusedAppId === appId) : (toplevelData ? toplevelData.activated : false)
-                        property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
+                        property string appId: modelData?.appId ?? ""
                         // Raw title from compositor (updates immediately, may flash briefly)
                         readonly property string rawTitle: {
                             const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
@@ -850,12 +850,12 @@ BasePill {
                         }
                         onRawTitleChanged: root.requestTitleUpdate(stableId, rawTitle)
                         property var toplevelObject: toplevelData
-                        property int windowCount: isGrouped ? modelData.windows.length : 1
+                        property int windowCount: isGrouped ? groupWindows.length : 1
                         readonly property bool isMinimized: {
                             if (!CompositorService.supportsMinimize)
                                 return false;
                             if (isGrouped)
-                                return groupData.windows.length > 0 && groupData.windows.every(w => w.toplevel.minimized);
+                                return groupWindows.length > 0 && groupWindows.every(w => w.toplevel.minimized);
                             return toplevelObject?.minimized === true;
                         }
                         property string tooltipText: {
@@ -958,7 +958,7 @@ BasePill {
                         }
                         Component.onDestruction: {
                             widthManager.unregister(stableId);
-                            if (root.hoveredItem === delegateItem)
+                            if (root?.hoveredItem === delegateItem)
                                 root.hoveredItem = null;
                         }
                         onNaturalTextWidthChanged: widthManager.register(stableId, naturalTextWidth)
@@ -1221,14 +1221,14 @@ BasePill {
                                 if (mouse.button === Qt.LeftButton) {
                                     if (isGrouped && windowCount > 1) {
                                         let currentIndex = -1;
-                                        for (var i = 0; i < groupData.windows.length; i++) {
-                                            if (groupData.windows[i].toplevel.activated) {
+                                        for (var i = 0; i < groupWindows.length; i++) {
+                                            if (groupWindows[i].toplevel.activated) {
                                                 currentIndex = i;
                                                 break;
                                             }
                                         }
-                                        const nextIndex = (currentIndex + 1) % groupData.windows.length;
-                                        CompositorService.activateToplevel(groupData.windows[nextIndex].toplevel);
+                                        const nextIndex = (currentIndex + 1) % groupWindows.length;
+                                        CompositorService.activateToplevel(groupWindows[nextIndex].toplevel);
                                     } else if (toplevelObject) {
                                         CompositorService.toggleToplevel(toplevelObject);
                                     }
@@ -1381,15 +1381,15 @@ BasePill {
                     id: delegateItem
 
                     Component.onDestruction: {
-                        if (root.hoveredItem === delegateItem)
+                        if (root?.hoveredItem === delegateItem)
                             root.hoveredItem = null;
                     }
 
-                    property bool isGrouped: root._groupByApp
-                    property var groupData: isGrouped ? modelData : null
-                    property var toplevelData: isGrouped ? (modelData.windows.length > 0 ? modelData.windows[0].toplevel : null) : modelData
+                    readonly property var groupWindows: modelData?.windows ?? null
+                    readonly property bool isGrouped: groupWindows !== null
+                    property var toplevelData: isGrouped ? (groupWindows[0]?.toplevel ?? null) : modelData
                     property bool isFocused: isGrouped ? (root.focusedAppId === appId) : (toplevelData ? toplevelData.activated : false)
-                    property string appId: isGrouped ? modelData.appId : (modelData.appId || "")
+                    property string appId: modelData?.appId ?? ""
                     readonly property string rawTitle: {
                         const title = toplevelData ? (toplevelData.title || "(Unnamed)") : "(Unnamed)";
                         if (!root.stripAppName)
@@ -1415,12 +1415,12 @@ BasePill {
                         root.requestTitleUpdate(id, rawTitle)
                     }
                     property var toplevelObject: toplevelData
-                    property int windowCount: isGrouped ? modelData.windows.length : 1
+                    property int windowCount: isGrouped ? groupWindows.length : 1
                     readonly property bool isMinimized: {
                         if (!CompositorService.supportsMinimize)
                             return false;
                         if (isGrouped)
-                            return groupData.windows.length > 0 && groupData.windows.every(w => w.toplevel.minimized);
+                            return groupWindows.length > 0 && groupWindows.every(w => w.toplevel.minimized);
                         return toplevelObject?.minimized === true;
                     }
                     property string tooltipText: {
@@ -1691,14 +1691,14 @@ BasePill {
                             if (mouse.button === Qt.LeftButton) {
                                 if (isGrouped && windowCount > 1) {
                                     let currentIndex = -1;
-                                    for (var i = 0; i < groupData.windows.length; i++) {
-                                        if (groupData.windows[i].toplevel.activated) {
+                                    for (var i = 0; i < groupWindows.length; i++) {
+                                        if (groupWindows[i].toplevel.activated) {
                                             currentIndex = i;
                                             break;
                                         }
                                     }
-                                    const nextIndex = (currentIndex + 1) % groupData.windows.length;
-                                    CompositorService.activateToplevel(groupData.windows[nextIndex].toplevel);
+                                    const nextIndex = (currentIndex + 1) % groupWindows.length;
+                                    CompositorService.activateToplevel(groupWindows[nextIndex].toplevel);
                                 } else if (toplevelObject) {
                                     CompositorService.toggleToplevel(toplevelObject);
                                 }

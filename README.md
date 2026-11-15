@@ -4,13 +4,33 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-11-13
-**Base commit:** `d5a82f71` (controlcenter: show tile edit chrome only on hover) — `upstream/master` tip
+**Last synced:** 2026-11-15
+**Base commit:** `964c364d` (fix(media): keep the bar pill width stable across track changes) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `433438fa` = `upstream/master` tip `d5a82f71` + 13 fork DDC commits). The running shell is `qs -p ~/code/_forks/DankMaterialShell/quickshell`, i.e. that working tree, launched through `~/.local/bin/dms` (`dms-shell-2.2-beta+date=2026-11-13_433438f`), so every upstream API is in it. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `c578ca40` = `upstream/master` tip `964c364d` + 15 fork commits). The running shell is `qs -p ~/code/_forks/DankMaterialShell/quickshell`, i.e. that working tree, launched through `~/.local/bin/dms` (`dms-shell-2.2-beta+date=2026-11-15_c578ca4`), so every upstream API is in it. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `c5cb0beb`)
+### Applied in this sync (since `d5a82f71`)
+
+25 upstream commits; four touch forked widgets. None touch FocusedApp, NetworkMonitor,
+SystemTrayBar, WorkspaceSwitcher or `AudioVisualization.qml`.
+
+- **CustomRunningApps** — `2be75d0b` (ref #4260): each delegate reads `isGrouped` from its own
+  row (`groupWindows: modelData?.windows ?? null`) instead of `root._groupByApp`, so a delegate
+  still holding an old row while grouping toggles no longer reads `.windows` off a toplevel.
+  `groupData` is gone; `onDestruction` reads `root?.hoveredItem`. Both delegate branches.
+- **CustomMedia** — `964c364d`: the text slot holds its last width while metadata is briefly
+  empty between tracks, and the cover slot stays reserved (a `chipSurfaceNested` square) while
+  art loads. Upstream reserves it only with the visualizer on; ours also does with `hideIcon`,
+  since then no icon slot takes the art's place.
+- **CustomMedia** — `cd573724`: prev/play/next use the shared `MediaTransportButton`
+  (`NavButton` component), which suppresses the media OSD on click and enables prev for
+  seekable players. The hand-built `StateLayer` buttons are gone.
+- **CustomMedia** — `718db63d`: the lyric line gets `playing` (scroll stops while paused) and
+  the `mediaScrollLyrics` widget option as `scroll` (default on). The scrolling itself, and
+  `2cb0df62`'s right-to-left sweep, live in upstream's `MediaLyricLine` and came for free.
+
+### Applied in the 2026-11-13 sync (since `c5cb0beb`)
 
 191 upstream commits; seven touch forked widgets. None touch Media, NetworkMonitor,
 SystemTrayBar or `AudioVisualization.qml`.

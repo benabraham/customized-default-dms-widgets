@@ -62,10 +62,13 @@ BasePill {
     readonly property string coverArtUrl: coverArtEnabled && activePlayer && TrackArtService.artReadyFor(activePlayer) ? TrackArtService.resolvedArtUrl : ""
     readonly property bool hasCoverArt: coverArtUrl !== ""
     readonly property bool visualizerEnabled: CavaService.cavaAvailable && SettingsData.audioVisualizerEnabled
+    // With the visualizer the cover slot stays reserved while art loads, so skipping tracks never resizes the pill.
+    // Custom: hideIcon leaves no icon slot to swap in for the art, so it reserves the cover slot too.
+    readonly property bool showCoverSlot: hasCoverArt || (coverArtEnabled && (visualizerEnabled || hideIcon) && playerAvailable)
     // Custom: hideIcon hides only the icon/visualizer slot; cover art still shows
     readonly property bool showIconSlot: (visualizerEnabled || !hasCoverArt) && !hideIcon
     readonly property real badgeSize: BarMetrics.mediaControlSize * contentScale
-    readonly property real badgeExtent: (hasCoverArt ? badgeSize + Theme.spacingXS : 0) + (showIconSlot ? badgeSize + Theme.spacingXS : 0)
+    readonly property real badgeExtent: (showCoverSlot ? badgeSize + Theme.spacingXS : 0) + (showIconSlot ? badgeSize + Theme.spacingXS : 0)
     readonly property string trackSummary: [MprisController.stableTitle, MprisController.stableArtist, MprisController.stableAlbum].filter(part => part).join(" • ")
     readonly property bool lyricActive: {
         if (!lyricsEnabled)
@@ -206,11 +209,12 @@ BasePill {
         width: root.badgeSize
         height: root.badgeSize
         radius: Theme.cornerRadiusXS
-        color: "transparent"
-        visible: root.hasCoverArt
+        color: root.hasCoverArt ? "transparent" : Theme.chipSurfaceNested
+        visible: root.showCoverSlot
 
         Image {
             anchors.fill: parent
+            visible: root.hasCoverArt
             source: root.coverArtUrl
             sourceSize: Qt.size(Math.round(width * root.dpr), Math.round(height * root.dpr))
             fillMode: Image.PreserveAspectCrop
@@ -243,12 +247,15 @@ BasePill {
         height: width
         visible: root.playerAvailable
 
-        DIconButton {
+        MediaTransportButton {
             anchors.centerIn: parent
             width: parent.width
             height: parent.height
             buttonSize: parent.width
             iconSize: 14 * root.contentScale
+            mediaAction: "play"
+            // A browser hover preview autoplays without the user asking, so the pill keeps showing play.
+            playing: root._isPlaying
             radius: {
                 if (!Theme.shapeMorph)
                     return Theme.cornerRadiusS;
@@ -258,14 +265,16 @@ BasePill {
             }
             variant: "filled"
             round: false
-            checkable: true
-            checked: root._isPlaying
-            iconFilled: false
-            iconName: root._isPlaying ? "pause" : "play_arrow"
-            Accessible.name: root._isPlaying ? I18n.tr("Pause") : I18n.tr("Play")
-            enabled: root.activePlayer?.canTogglePlaying ?? false
-            onClicked: root.activePlayer.togglePlaying()
         }
+    }
+
+    component NavButton: MediaTransportButton {
+        width: BarMetrics.mediaControlSize * root.contentScale
+        height: width
+        buttonSize: width
+        iconSize: 12 * root.contentScale
+        visible: root.playerAvailable
+        iconColor: root.contentColor
     }
 
     content: Component {
@@ -275,10 +284,21 @@ BasePill {
             // Natural width of the text slot. Fixed sizes use their pixel width; unlimited mode uses the
             // title's width. While a lyric line shows, the slot keeps that width (a lyric line has no
             // natural width; mediaText stays alive with the title) so the pill does not jump per line.
-            readonly property real naturalTextWidth: {
+            readonly property real measuredNaturalTextWidth: {
                 if (!root.playerAvailable || root.textWidth === 0)
                     return 0;
                 return root.textWidth > 0 ? root.textWidth : mediaText.implicitTextWidth;
+            }
+            // Metadata is briefly empty between tracks; keep the last width so the pill does not collapse and regrow.
+            property real heldTextWidth: 0
+            onMeasuredNaturalTextWidthChanged: {
+                if (measuredNaturalTextWidth > 0)
+                    heldTextWidth = measuredNaturalTextWidth;
+            }
+            readonly property real naturalTextWidth: {
+                if (!root.playerAvailable || root.textWidth === 0)
+                    return 0;
+                return measuredNaturalTextWidth > 0 ? measuredNaturalTextWidth : heldTextWidth;
             }
             readonly property real fixedContentWidth: root.badgeExtent + 64 * root.contentScale + Theme.spacingXS * 2
             readonly property real textBudget: root.allottedPrimarySize > 0 ? Math.max(0, root.allottedPrimarySize - root.horizontalPadding * 2 - fixedContentWidth - Theme.spacingXS) : Infinity
@@ -442,6 +462,8 @@ BasePill {
                             color: root.contentColor
                             font.pixelSize: mediaText.font.pixelSize
                             live: root.surfaceLive
+                            playing: root.surfaceLive && root._isPlaying
+                            scroll: SettingsData.widgetOption("music", root.widgetData, "mediaScrollLyrics")
                             sweep: SettingsData.widgetOption("music", root.widgetData, "mediaSmoothLyrics")
                         }
 
@@ -468,60 +490,18 @@ BasePill {
                     spacing: Theme.spacingXS
                     anchors.verticalCenter: parent.verticalCenter
 
-                    Rectangle {
-                        width: BarMetrics.mediaControlSize * root.contentScale
-                        height: BarMetrics.mediaControlSize * root.contentScale
-                        radius: Theme.cornerRadiusFull
+                    NavButton {
+                        mediaAction: "previous"
                         anchors.verticalCenter: parent.verticalCenter
-                        color: "transparent"
-                        visible: root.playerAvailable
-                        opacity: (activePlayer && activePlayer.canGoPrevious) ? 1 : 0.3
-
-                        DIcon {
-                            anchors.centerIn: parent
-                            name: "skip_previous"
-                            size: 12 * root.contentScale
-                            color: root.contentColor
-                        }
-
-                        StateLayer {
-                            id: prevArea
-                            enabled: root.playerAvailable
-                            stateColor: root.contentColor
-                            onClicked: MprisController.previousOrRewind()
-                        }
                     }
 
                     PlayButton {
                         anchors.verticalCenter: parent.verticalCenter
                     }
 
-                    Rectangle {
-                        width: BarMetrics.mediaControlSize * root.contentScale
-                        height: BarMetrics.mediaControlSize * root.contentScale
-                        radius: Theme.cornerRadiusFull
+                    NavButton {
+                        mediaAction: "next"
                         anchors.verticalCenter: parent.verticalCenter
-                        color: "transparent"
-                        visible: playerAvailable
-                        opacity: (activePlayer && activePlayer.canGoNext) ? 1 : 0.3
-
-                        DIcon {
-                            anchors.centerIn: parent
-                            name: "skip_next"
-                            size: 12 * root.contentScale
-                            color: root.contentColor
-                        }
-
-                        StateLayer {
-                            id: nextArea
-                            enabled: root.playerAvailable
-                            stateColor: root.contentColor
-                            onClicked: {
-                                if (activePlayer) {
-                                    MprisController.next();
-                                }
-                            }
-                        }
                     }
                 }
             }
