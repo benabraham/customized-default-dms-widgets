@@ -15,15 +15,23 @@ No build/lint/test commands - QML plugins are loaded directly by DMS at runtime.
 
 **Testing changes:**
 1. Edit QML files
-2. `dms restart` to restart the running shell and pick up the changes
+2. Restart the shell to pick up the changes. Agents do this themselves after every plugin edit
+   (and after an upstream sync), using the detached procedure below, not plain `dms restart`
+3. Read the new quickshell log (path below) after ~30 s: no `ReferenceError`/`TypeError`/
+   `Unable to assign` and no `plugins/Custom*` lines. Then ask the user to check the bar by eye
 
 **Never run `dms restart` from an agent tool call.** The respawned daemon inherits the tool's
 transient stdio and process group, so the shell dies the moment the call returns — leaving the user
 with no bar. Ask the user to run it, or start it fully detached:
-`setsid nohup ~/.local/bin/dms run -d > /tmp/dms-shell.log 2>&1 < /dev/null & disown`.
+`setsid nohup ~/.local/bin/dms -c ~/code/_forks/DankMaterialShell/quickshell run -d > /tmp/dms-shell.log 2>&1 < /dev/null & disown`.
+The `-c` is required: without it the wrapper runs the Nix store copy of the shell, not the fork
+working tree (`qs -p /nix/store/…` instead of `qs -p ~/code/_forks/…`).
 Wrapping `dms restart` itself in `setsid nohup … & disown` does **not** work: it signals the
 running daemon (`SIGUSR1`) and the shell still dies with no respawn (seen 2026-09-26). If a shell
-is already running, stop it first (`pkill -f 'dms run -d'`), then use the `dms run -d` line above.
+is already running, stop it first: `kill` the PID of the `run -d --daemon-child` process
+(`pgrep -f 'run -d --daemon-child'`) and wait for its `qs -p` child to exit. Don't `pkill -f`
+by pattern — the daemon's command line has `-c …` between `dms` and `run`, so `'dms run -d'`
+matches nothing, and any pattern also matches the agent's own `bash -c` wrapper.
 That log only carries the Go daemon's lines; `quickshell`'s stderr goes to a pipe the daemon owns,
 so QML warnings (binding loops included) are not readable this way. Quickshell keeps its own
 plain-text log of them instead, per instance: the newest
