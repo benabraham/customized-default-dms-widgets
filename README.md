@@ -4,13 +4,41 @@ Modified copies of DMS built-in widgets. The code is copied from DankMaterialShe
 
 ## Upstream Revision
 
-**Last synced:** 2026-11-15
-**Base commit:** `964c364d` (fix(media): keep the bar pill width stable across track changes) — `upstream/master` tip
+**Last synced:** 2026-11-19
+**Base commit:** `35657a5f` (osd: bound the osd and toast surfaces to their content (#4329)) — `upstream/master` tip
 **Repository:** https://github.com/AvengeMedia/DankMaterialShell
 
-> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `c578ca40` = `upstream/master` tip `964c364d` + 15 fork commits). The running shell is `qs -p ~/code/_forks/DankMaterialShell/quickshell`, i.e. that working tree, launched through `~/.local/bin/dms` (`dms-shell-2.2-beta+date=2026-11-15_c578ca4`), so every upstream API is in it. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
+> Local clone lives at `~/code/_forks/DankMaterialShell` (branch `feature/ddc-controls`, HEAD `04cde073` = `upstream/master` tip `35657a5f` + 15 fork commits). The running shell is `qs -p ~/code/_forks/DankMaterialShell/quickshell`, i.e. that working tree, launched through `~/.local/bin/dms` (`dms-shell-2.2-beta+date=2026-11-19_04cde07`), so every upstream API is in it. The Nix *profile* (`/etc/profiles/per-user/srb/bin/dms`) still ships only the Go CLI — `~/.local/bin` has to stay ahead of the profile on `PATH`.
 
-### Applied in this sync (since `d5a82f71`)
+### Applied in this sync (since `964c364d`)
+
+83 upstream commits; three touch four forked widgets. None touch FocusedApp, RunningApps or
+`AudioVisualization.qml`. `MediaLyricLine` changed internally only (same properties we set).
+
+**A breakage fix first.** The fork already ran upstream's motion overhaul, which dropped
+`Theme.springPreset("fast", 150)` and `Theme.expressiveCurves.emphasizedDecel`. The shell log
+showed `TypeError: Cannot read property 'stiffness'/'damping' of undefined` (workspace drag
+springs) and `Unable to assign [undefined] to QList<double>` (CustomMedia width animations).
+Both are gone with the ports below.
+
+- **All four widgets** — `2dc1e8df` "m3e … overhaul animation settings": `Theme.shortDuration` /
+  `mediumDuration` + `standardEasing`/`emphasizedDecel` replaced by `Theme.expressiveDurations.*`
+  with `Easing.BezierSpline` curves — `expressiveDefaultSpatial` for size, `expressiveFastEffects`
+  for opacity, `expressiveFastSpatial` for the tray's drag shift. CustomMedia, CustomNetworkMonitor,
+  CustomSystemTrayBar.
+- **CustomWorkspaceSwitcher** — same commit: `springPreset("fastSpatial")`, and the eleven pill /
+  focus-ring / `visualContent` behaviors move from `mediumDuration` + `emphasizedEasing` to
+  upstream's `expressiveFastSpatial` (size, border width) and `expressiveEffects` (opacity, border
+  color), each gated by `enabled: !Theme.reduceMotion`. Ours had never picked up upstream's
+  expressive pill timings, so the pills now animate like upstream's.
+- **CustomSystemTrayBar** — `aa3dc8bb` builds the overflow and tray-menu `DPopout`s lazily in
+  `Loader`s: `root.overflowPopout()` / `root.trayMenuPopout()` create on first use,
+  `overflowPopoutRef` / `trayMenuPopoutRef` read without creating. `QtQuick.Layouts` import
+  dropped. Applied as upstream's own patch, all hunks clean.
+- **Timers** — `6564a11e`: `Timing.longPress` (tray long-press), `Timing.settleShort` (tray menu
+  action close), `Timing.debounceFast` (workspace data reload).
+
+### Applied in the 2026-11-15 sync (since `d5a82f71`)
 
 25 upstream commits; four touch forked widgets. None touch FocusedApp, NetworkMonitor,
 SystemTrayBar, WorkspaceSwitcher or `AudioVisualization.qml`.

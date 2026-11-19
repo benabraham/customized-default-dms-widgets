@@ -516,7 +516,7 @@ Item {
                     return 0;
                 }
 
-                readonly property var shiftSpringParams: Theme.springPreset("fast", 150)
+                readonly property var shiftSpringParams: Theme.springPreset("fastSpatial")
 
                 SpringMotion {
                     id: shiftXSpring
@@ -839,7 +839,7 @@ Item {
 
                 Timer {
                     id: dataUpdateTimer
-                    interval: 50
+                    interval: Timing.debounceFast
                     onTriggered: delegateRoot.loadData()
                 }
 
@@ -894,16 +894,20 @@ Item {
                 }
 
                 Behavior on width {
+                    enabled: !Theme.reduceMotion
                     NumberAnimation {
-                        duration: Theme.mediumDuration
-                        easing.type: Theme.emphasizedEasing
+                        duration: Theme.expressiveDurations.expressiveFastSpatial
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                     }
                 }
 
                 Behavior on height {
+                    enabled: !Theme.reduceMotion
                     NumberAnimation {
-                        duration: Theme.mediumDuration
-                        easing.type: Theme.emphasizedEasing
+                        duration: Theme.expressiveDurations.expressiveFastSpatial
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                     }
                 }
 
@@ -925,30 +929,38 @@ Item {
                     border.color: (root.opt("workspaceFocusedBorderEnabled") && isActive && !isPlaceholder) ? focusedBorderColor : "transparent"
 
                     Behavior on width {
+                        enabled: !Theme.reduceMotion
                         NumberAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                         }
                     }
 
                     Behavior on height {
+                        enabled: !Theme.reduceMotion
                         NumberAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                         }
                     }
 
                     Behavior on border.width {
+                        enabled: !Theme.reduceMotion
                         NumberAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                         }
                     }
 
                     Behavior on border.color {
+                        enabled: !Theme.reduceMotion
                         ColorAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveEffects
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveEffects
                         }
                     }
                 }
@@ -986,37 +998,47 @@ Item {
                     }
 
                     Behavior on opacity {
+                        enabled: !Theme.reduceMotion
                         NumberAnimation {
-                            duration: Theme.shortDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveEffects
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveEffects
                         }
                     }
 
                     Behavior on width {
+                        enabled: !Theme.reduceMotion
                         NumberAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                         }
                     }
 
                     Behavior on height {
+                        enabled: !Theme.reduceMotion
                         NumberAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                         }
                     }
 
                     Behavior on border.width {
+                        enabled: !Theme.reduceMotion
                         NumberAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveFastSpatial
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveFastSpatial
                         }
                     }
 
                     Behavior on border.color {
+                        enabled: !Theme.reduceMotion
                         ColorAnimation {
-                            duration: Theme.mediumDuration
-                            easing.type: Theme.emphasizedEasing
+                            duration: Theme.expressiveDurations.expressiveEffects
+                            easing.type: Easing.BezierSpline
+                            easing.bezierCurve: Theme.expressiveCurves.expressiveEffects
                         }
                     }
                 }
